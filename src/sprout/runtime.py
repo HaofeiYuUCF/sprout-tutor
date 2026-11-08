@@ -52,7 +52,7 @@ def build_board(root: Path | None = None) -> Board:
     if s.board.mode == "fake":
         return demo_fake_board()
     port = find_board_port(s.board.serial_port)
-    broker = SerialBroker(port.device if port else None, s.board.baud)
+    broker = SerialBroker(port.device if port else None, s.board.baud, preferred=s.board.serial_port)
     broker.start()
     return ArduinoCliBoard(root / s.board.arduino_cli, root / s.board.arduino_cli_config,
                            s.board.fqbn, broker)

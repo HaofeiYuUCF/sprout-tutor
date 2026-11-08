@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from .serial_broker import SerialBroker, SerialLine
+from .serial_broker import PortBusy, SerialBroker, SerialLine
 
 DIAG = re.compile(
     r"^(?P<file>.*?):(?P<line>\d+):(?:(?P<col>\d+):)?\s*"
@@ -63,6 +63,7 @@ class Board(Protocol):
     def compile(self, sketch_dir: Path) -> CompileResult: ...
     def upload(self, sketch_dir: Path) -> UploadResult: ...
     def recent_serial(self, seconds: float | None = None) -> list[SerialLine]: ...
+    def serial_since(self, seq: int) -> list[SerialLine]: ...
     def status(self) -> str: ...
 
 
@@ -81,36 +82,57 @@ class ArduinoCliBoard:
         cmd = [str(self.cli), "--config-file", str(self.config_file), *args]
         return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
+    @staticmethod
+    def _json(proc: subprocess.CompletedProcess) -> dict:
+        try:
+            return json.loads(proc.stdout) if proc.stdout.strip() else {}
+        except json.JSONDecodeError:
+            return {}
+
     def compile(self, sketch_dir: Path) -> CompileResult:
         t0 = time.time()
         proc = self._run(["compile", "--fqbn", self.fqbn, "--format", "json", str(sketch_dir)])
-        err_text = proc.stderr or ""
-        ok = proc.returncode == 0
-        try:
-            data = json.loads(proc.stdout) if proc.stdout.strip() else {}
-            err_text = data.get("compiler_err") or err_text
-            ok = bool(data.get("success", ok))
-        except json.JSONDecodeError:
-            err_text = (proc.stdout or "") + err_text
-        return CompileResult(ok, parse_diagnostics(err_text), err_text, time.time() - t0)
+        data = self._json(proc)
+        ok = bool(data.get("success", proc.returncode == 0))
+        # arduino-cli 1.x: compiler messages in compiler_err; tool failures (sketch not found,
+        # core missing, bad FQBN) in error.
+        err_text = (data.get("compiler_err") or data.get("error") or proc.stderr
+                    or ("" if data else proc.stdout) or "")
+        diags = []
+        for d in (data.get("builder_result") or {}).get("diagnostics") or []:
+            diags.append(Diagnostic(Path(str(d.get("file", ""))).name, int(d.get("line") or 0),
+                                    d.get("column"), str(d.get("severity", "error")).lower(),
+                                    str(d.get("message", ""))))
+        return CompileResult(ok, diags or parse_diagnostics(err_text), err_text, time.time() - t0)
 
     def upload(self, sketch_dir: Path) -> UploadResult:
-        if not self.broker or not self.broker.port:
-            return UploadResult(False, "No board port found. Plug in the UNO and run `sprout doctor`.")
+        if not self.broker:
+            return UploadResult(False, "Serial is not available in this mode.")
+        if not self.broker.port and not self.broker.rediscover():
+            return UploadResult(False, "No board found. Plug in the UNO with the USB cable and try again.")
         t0 = time.time()
-        with self.broker.paused():
-            proc = self._run(["upload", "-p", self.broker.port, "--fqbn", self.fqbn, str(sketch_dir)])
-        self.broker.clear()
-        msg = (proc.stderr or proc.stdout or "").strip()
-        return UploadResult(proc.returncode == 0, msg, time.time() - t0)
+        try:
+            with self.broker.paused():
+                proc = self._run(["upload", "-p", self.broker.port, "--fqbn", self.fqbn,
+                                  "--format", "json", str(sketch_dir)])
+        except PortBusy as e:
+            return UploadResult(False, str(e), time.time() - t0)
+        data = self._json(proc)
+        ok = proc.returncode == 0 and not data.get("error")
+        msg = str(data.get("error") or proc.stderr or "").strip()
+        return UploadResult(ok, msg, time.time() - t0)
 
     def recent_serial(self, seconds: float | None = None) -> list[SerialLine]:
         return self.broker.recent(seconds) if self.broker else []
 
+    def serial_since(self, seq: int) -> list[SerialLine]:
+        return self.broker.since(seq) if self.broker else []
+
     def status(self) -> str:
         if not self.broker:
             return "no serial"
-        return f"{self.broker.port or 'no port'}: {self.broker.state}"
+        extra = f" ({self.broker.last_error})" if self.broker.last_error else ""
+        return f"{self.broker.port or 'no board'}: {self.broker.state}{extra}"
 
 
 class FakeBoard:
@@ -127,7 +149,15 @@ class FakeBoard:
         self.compiler = compiler or (lambda code: [])
         self.behaviour = behaviour or (lambda code: [])
         self._lines: list[SerialLine] = []
+        self._seq = 0
         self._uploaded: str | None = None
+
+    def _make_lines(self, texts: list[str]) -> list[SerialLine]:
+        now, out = time.time(), []
+        for s in texts:
+            self._seq += 1
+            out.append(SerialLine(self._seq, now, s))
+        return out
 
     @staticmethod
     def _read(sketch_dir: Path) -> str:
@@ -144,17 +174,18 @@ class FakeBoard:
         if not result.ok:
             return UploadResult(False, "compile failed")
         code = self._read(sketch_dir)
-        now = time.time()
-        self._lines = [SerialLine(now, s) for s in self.behaviour(code)]
+        self._lines = self._make_lines(self.behaviour(code))
         self._uploaded = code
         return UploadResult(True, "uploaded (fake)")
 
     def set_serial(self, lines: list[str]) -> None:
-        now = time.time()
-        self._lines = [SerialLine(now, s) for s in lines]
+        self._lines = self._make_lines(lines)
 
     def recent_serial(self, seconds: float | None = None) -> list[SerialLine]:
         return list(self._lines)
+
+    def serial_since(self, seq: int) -> list[SerialLine]:
+        return [ln for ln in self._lines if ln.seq > seq]
 
     def status(self) -> str:
         return "fake board"

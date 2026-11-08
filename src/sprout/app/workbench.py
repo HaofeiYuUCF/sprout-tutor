@@ -7,12 +7,25 @@ from nicegui import run, ui
 from ..config import data_dir, repo_root
 from ..content import load_cards
 from ..hardware.board import Board, CompileResult
+from ..hardware.serial_broker import SerialLine
 from ..tutor.checks import CheckResult
 from ..tutor.context import Context, code_hash, parse_field
 from ..tutor.orchestrator import STEP_NAMES, Tutor
 from ..workspace import read_sketch, write_sketch
 
 PLOT_FIELDS = ("temp_c",)
+SOURCE_LABEL = {"curated": "tutor (instructor hint)", "llm": "tutor (AI)",
+                "generic": "tutor (general advice)", "none": "tutor"}
+
+
+def merge_new_lines(buffer: list[str], last_seq: int, new: list[SerialLine],
+                    keep: int = 300) -> tuple[list[str], int, list[str]]:
+    """Append only lines newer than last_seq. Returns (buffer, last_seq, lines_to_display)."""
+    fresh = [ln for ln in new if ln.seq > last_seq]
+    if not fresh:
+        return buffer, last_seq, []
+    texts = [ln.text for ln in fresh]
+    return (buffer + texts)[-keep:], fresh[-1].seq, texts
 
 
 class Session:
@@ -25,7 +38,9 @@ class Session:
         self.cards = load_cards(repo_root())
         self.card = self.cards[sorted(self.cards)[0]]
         self.compile_result: CompileResult | None = None
+        self.compiled_hash: str | None = None  # code the compile result belongs to
         self.serial: list[str] = []
+        self.last_seq = 0
         self.last_noted_hash: str | None = None
         self.step_id: str | None = None
 
@@ -34,8 +49,9 @@ class Session:
         return saved if saved is not None else self.cards[card_id].starter.read_text(encoding="utf-8")
 
     def context(self, code: str, student_text: str = "") -> Context:
-        return Context(self.card, code, self.compile_result, list(self.serial), student_text,
-                       step_id=self.step_id)
+        # A compile result for different code is stale: treat as not compiled.
+        result = self.compile_result if self.compiled_hash == code_hash(code) else None
+        return Context(self.card, code, result, list(self.serial), student_text, step_id=self.step_id)
 
 
 def build_page(session: Session) -> None:
@@ -46,13 +62,11 @@ def build_page(session: Session) -> None:
         status = ui.label(session.board.status()).classes("text-caption")
 
     with ui.row().classes("w-full no-wrap items-start gap-4"):
-        # ---------------------------------------------------------------- card column
         with ui.column().classes("w-1/4 min-w-[260px]"):
-            card_select = ui.select({cid: f"{b.card.title}" for cid, b in session.cards.items()},
+            card_select = ui.select({cid: b.card.title for cid, b in session.cards.items()},
                                     value=session.card.id, label="Card")
             card_box = ui.column().classes("w-full")
 
-        # ---------------------------------------------------------------- code column
         with ui.column().classes("w-1/2 min-w-[420px]"):
             editor = ui.codemirror(session.code_for(session.card.id), language="C++").classes(
                 "w-full h-[340px] border")
@@ -61,7 +75,7 @@ def build_page(session: Session) -> None:
                 upload_btn = ui.button("Upload", icon="upload")
                 check_btn = ui.button("Check my work", icon="task_alt").props("outline")
                 ui.button("Reset to starter", on_click=lambda: reset_starter()).props("flat")
-            compiler_out = ui.label("").classes("mono text-red-9 whitespace-pre-wrap")
+            compiler_out = ui.label("").classes("mono whitespace-pre-wrap")
             ui.label("Serial log").classes("text-subtitle2")
             serial_log = ui.log(max_lines=200).classes("w-full h-[140px] mono")
             chart = ui.echart({
@@ -71,7 +85,6 @@ def build_page(session: Session) -> None:
                 "grid": {"left": 40, "right": 10, "top": 30, "bottom": 20},
             }).classes("w-full h-[180px]")
 
-        # ---------------------------------------------------------------- tutor column
         with ui.column().classes("w-1/4 min-w-[260px]"):
             ui.label("Tutor").classes("text-subtitle1")
             question = ui.textarea(label="What do you see? What did you expect?").classes("w-full")
@@ -105,12 +118,16 @@ def build_page(session: Session) -> None:
         if opened:
             session.step_id = step_id
 
+    def reset_serial() -> None:
+        session.serial = []
+        serial_log.clear()
+
     def change_card(e) -> None:
         save_code()
         session.card = session.cards[e.value]
-        session.compile_result, session.serial = None, []
+        session.compile_result, session.compiled_hash = None, None
         editor.value = session.code_for(session.card.id)
-        serial_log.clear()
+        reset_serial()
         hints_box.clear()
         checks_box.clear()
         render_card()
@@ -133,15 +150,17 @@ def build_page(session: Session) -> None:
     async def do_compile() -> CompileResult:
         code = save_code()
         compile_btn.props("loading")
-        sk = write_sketch(data_dir(), session.learner_id, session.card.id, code)
-        r = await run.io_bound(session.board.compile, sk)
-        compile_btn.props(remove="loading")
-        session.compile_result = r
-        compiler_out.text = "Compiled OK" if r.ok else "\n".join(
-            f"line {d.line}: {d.message}" for d in r.errors) or r.raw_error
+        try:
+            sk = write_sketch(data_dir(), session.learner_id, session.card.id, code)
+            r = await run.io_bound(session.board.compile, sk)
+        finally:
+            compile_btn.props(remove="loading")
+        session.compile_result, session.compiled_hash = r, code_hash(code)
+        msg = "\n".join(f"line {d.line}: {d.message}" for d in r.errors) or r.raw_error
+        compiler_out.text = "Compiled OK" if r.ok else (msg or "Compile failed (no message).")
         compiler_out.classes(replace="mono whitespace-pre-wrap " + ("text-green-9" if r.ok else "text-red-9"))
-        session.tutor.note(session.context(code), "compile", compile_ok=r.ok,
-                           compile_error_hash=session.context(code).compile_error_hash)
+        ctx = session.context(code)
+        session.tutor.note(ctx, "compile", compile_ok=r.ok, compile_error_hash=ctx.compile_error_hash)
         return r
 
     async def do_upload() -> None:
@@ -149,18 +168,20 @@ def build_page(session: Session) -> None:
         if not r.ok:
             return
         upload_btn.props("loading")
-        sk = write_sketch(data_dir(), session.learner_id, session.card.id, editor.value or "")
-        u = await run.io_bound(session.board.upload, sk)
-        upload_btn.props(remove="loading")
-        session.serial = []
-        serial_log.clear()
+        try:
+            sk = write_sketch(data_dir(), session.learner_id, session.card.id, editor.value or "")
+            u = await run.io_bound(session.board.upload, sk)
+        finally:
+            upload_btn.props(remove="loading")
+        reset_serial()
         session.tutor.note(session.context(editor.value or ""), "upload",
                            detail={"ok": u.ok, "message": u.message[:300]})
         ui.notify("Uploaded" if u.ok else f"Upload failed: {u.message[:200]}",
                   type="positive" if u.ok else "negative")
 
-    def do_check() -> None:
-        results: list[CheckResult] = session.tutor.checks(session.context(editor.value or ""))
+    async def do_check() -> None:
+        ctx = session.context(editor.value or "")
+        results: list[CheckResult] = await run.io_bound(session.tutor.checks, ctx)
         checks_box.clear()
         with checks_box:
             for r in results:
@@ -168,30 +189,31 @@ def build_page(session: Session) -> None:
             if all(r.passed for r in results):
                 ui.label("Card complete. Go on to the Reflect step.").classes("text-positive")
 
-    def do_ask() -> None:
+    async def do_ask() -> None:
         code = save_code()
-        resp = session.tutor.request_hint(session.context(code, question.value or ""))
-        if question.value:
+        text = question.value or ""
+        if text:  # counts as effort only if the last hint asked a question (see Ladder)
             session.tutor.note(session.context(code), "answered_question")
+        ask_btn.props("loading")
+        try:
+            resp = await run.io_bound(session.tutor.request_hint, session.context(code, text))
+        finally:
+            ask_btn.props(remove="loading")
         with hints_box:
             with ui.card().classes("w-full"):
-                src = "tutor (curated)" if resp.source == "curated" else "tutor (AI)"
-                ui.label(f"Step {resp.step}: {STEP_NAMES[resp.step]} · {src}").classes(
-                    "text-caption text-grey-8")
+                ui.label(f"Step {resp.step}: {STEP_NAMES[resp.step]} · "
+                         f"{SOURCE_LABEL.get(resp.source, 'tutor')}").classes("text-caption text-grey-8")
                 ui.markdown(resp.text)
         question.value = ""
 
     def poll_serial() -> None:
         status.text = session.board.status()
-        lines = [ln.text for ln in session.board.recent_serial(120)]
-        new = lines[len(session.serial):] if lines[: len(session.serial)] == session.serial else lines
-        if not new:
+        session.serial, session.last_seq, shown = merge_new_lines(
+            session.serial, session.last_seq, session.board.serial_since(session.last_seq))
+        if not shown:
             return
-        if new is lines:
-            serial_log.clear()
-        for ln in new:
+        for ln in shown:
             serial_log.push(ln)
-        session.serial = lines[-300:]
         for f in PLOT_FIELDS:
             values = parse_field(session.serial, f)
             if values:

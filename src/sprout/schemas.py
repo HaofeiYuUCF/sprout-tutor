@@ -13,7 +13,7 @@ SKETCH_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,62}$")
 
 FaultClass = Literal["compile", "wiring", "logic", "serial"]
 StepKind = Literal["simulate", "build", "code", "run", "calibrate", "reflect"]
-HintSource = Literal["curated", "llm", "none"]
+HintSource = Literal["curated", "llm", "generic", "none"]  # generic = fallback advice, not instructor-written
 
 
 class Strict(BaseModel):
@@ -126,8 +126,9 @@ class Evidence(Strict):
     serial_regex: str | None = None        # pattern in recent serial lines
     serial_out_of_range: SerialRange | None = None  # parsed values outside [min, max]
     photo_finding: str | None = None       # finding id produced by the photo check
-    student_keywords: list[str] = []       # words in the student's own description
+    student_keywords: list[str] = []       # whole words/phrases in the student's own description
     context_serial_regex: str | None = None
+    requires_context: bool = False         # candidate only if context_serial_regex also matches
 
     @model_validator(mode="after")
     def has_trigger(self) -> Evidence:
@@ -249,6 +250,7 @@ class CardProgress(Strict):
     highest_hint_step: int = 0
     hints_curated: int = 0
     hints_llm: int = 0
+    hints_generic: int = 0
     first_opened: str | None = None
     completed_at: str | None = None
 

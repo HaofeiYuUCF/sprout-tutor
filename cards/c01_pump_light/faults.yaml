@@ -35,7 +35,7 @@ faults:
       student_keywords: ["not light", "doesn't light", "does not light", "no light", "stays off", "won't light"]
       photo_finding: led_circuit_open
     hints:
-      - The serial log alternates PUMP ON / PUMP OFF, so your code is fine. Look at the circuit.
+      - If your serial log alternates PUMP ON / PUMP OFF, the code is running, so look at the circuit. If there is no log yet, upload first and check it.
       - "Trace the path: pin 8 → resistor → LED long leg → LED short leg → GND. Is every link in the same breadboard row?"
       - An LED only conducts one way, and parts in neighbouring rows are not connected. Check the LED's direction and each row.
       - Put the LED's long leg in the row with the resistor and its short leg in a row wired to GND, then watch it blink.

@@ -54,8 +54,10 @@ class ProgressStore:
         c.highest_hint_step = max(c.highest_hint_step, step)
         if source == "llm":
             c.hints_llm += 1
-        else:
+        elif source == "curated":
             c.hints_curated += 1
+        else:
+            c.hints_generic += 1
         self.save(prog)
 
     def checks(self, learner_id: str, card_id: str, passed_ids: list[str], all_passed: bool) -> None:

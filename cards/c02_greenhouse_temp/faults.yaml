@@ -20,10 +20,10 @@ faults:
     title: Integer division in the voltage conversion
     evidence:
       code_regex: "\\(\\s*5\\s*/\\s*1023\\s*\\)"
-      serial_regex: "temp_c=-50\\.0"
+      context_serial_regex: "temp_c=-50\\.0"
     seed: integer_division
     hints:
-      - Every reading is exactly -50.0, even when you pinch the sensor. That points to the calculation, not the wiring.
+      - Look at the calculation in your code before the wiring. After an upload, a reading stuck at exactly -50.0, even when you pinch the sensor, is the typical sign.
       - Look at how volts is computed. Work it out by hand for raw = 150. Do you get about 0.73?
       - In C++, 5 / 1023 uses whole numbers and evaluates to 0, so volts is always 0.
       - Write the numbers as decimals (5.0 / 1023.0) so the division keeps its fraction.
@@ -35,7 +35,7 @@ faults:
       code_regex: "TEMP_PIN\\s*=\\s*A[1-5]\\b|analogRead\\s*\\(\\s*A[1-5]\\s*\\)"
     seed: wrong_analog_pin
     hints:
-      - The readings do not respond when you pinch the sensor. Compare your code with your wiring.
+      - Compare your code with your wiring. If the readings do not change when you pinch the sensor, a pin mismatch is a common cause.
       - Check which analog pin the sensor's middle leg goes to, and which pin your code reads.
       - Your code reads a different analog pin from the one the sensor is wired to.
       - Make the pin in your code match the wire (A0 in the card), or move the wire to match the code.
@@ -45,10 +45,11 @@ faults:
     title: Signal leg not connected to A0
     evidence:
       serial_out_of_range: {field: temp_c, min: -10, max: 60}
+      serial_regex: "\\braw=0\\b"
       photo_finding: tmp36_signal_open
       student_keywords: [random, jumping, "crazy numbers", "weird numbers"]
     hints:
-      - The numbers are impossible for a room (or jump around). The code runs; check the circuit.
+      - If the numbers are impossible for a room, stuck at raw=0, or jumping around, the code is running but the signal is not reaching the board. Check the circuit.
       - Follow the middle leg of the sensor. Is it in the same breadboard row as the wire to A0?
       - The sensor's signal leg is not reaching A0, so the pin floats and reads noise or zero.
       - Put the wire from A0 in the same row as the TMP36's middle leg and press it in firmly.

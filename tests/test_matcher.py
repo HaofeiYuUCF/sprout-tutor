@@ -29,7 +29,7 @@ def test_integer_division_beats_generic_out_of_range(cards):
                   serial_lines=["raw=153 temp_c=-50.0"] * 5)
     m = match_faults(ctx)
     assert m[0].fault.id == "integer_division"
-    assert {"code", "serial"} <= set(m[0].channels)
+    assert m[0].channels == ["code"] and m[0].score == 1.5  # serial -50.0 only adds context
     assert "signal_unconnected" in [x.fault.id for x in m]
 
 

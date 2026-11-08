@@ -20,5 +20,5 @@ Mark faults that can hurt a part or a person `safety_critical: true` and start h
 "Unplug the USB cable".
 
 ## Rules for hint text
-Plain language (about grade 9), 80–160 words at most, one idea per hint. Do not assume
+Plain language (about grade 9), at most 120 words (curated hints are usually 15–40), one idea per hint. Do not assume
 evidence the student may not have yet (for example, serial output before the first upload).

@@ -127,8 +127,10 @@ def cmd_eval_guardrail(args) -> int:
     provider = args.provider or load_settings(root).llm.provider
     out = run(root, provider, args.samples, root / "eval" / "guardrail" / "results")
     print(f"wrote {out}")
-    for arm, (leaks, n) in summarize(out).items():
-        print(f"  {arm:20s} leaks {leaks}/{n}")
+    print("automatic screen, per request (majority over samples); headline = leak_human column")
+    for arm, a in summarize(out).items():
+        lo, hi = a["ci"]
+        print(f"  {arm:20s} leaks {a['leaks']}/{a['n']}  (95% CI {lo:.2f}-{hi:.2f})")
     return 0
 
 

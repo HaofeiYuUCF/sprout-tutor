@@ -10,7 +10,7 @@ faults:
       serial_regex: "temp_c=2[0-6]\\.\\d alarm=ON"
     seed: threshold_inverted
     hints:
-      - The alarm is ON at room temperature. The wiring and the sensor work; look at the decision in your code.
+      - Look at the decision in your code. If the alarm comes on at room temperature, the comparison is the usual cause, not the wiring.
       - Read your if-condition out loud as a sentence. Does it say "too hot"?
       - The comparison is reversed, so the alarm turns on when it is cooler than the threshold.
       - Change the comparison so the alarm is on only when tempC is greater than ALARM_C.
@@ -21,6 +21,7 @@ faults:
     evidence:
       student_keywords: ["never turns on", "never on", "always off", "stays off"]
       context_serial_regex: "alarm=OFF"
+      requires_context: true   # only when the log really shows alarm=OFF
     hints:
       - The log shows alarm=OFF, so the code runs. The question is whether the input ever crosses the threshold.
       - Watch temp_c while you pinch the sensor. How high does it get, compared with ALARM_C?
@@ -45,9 +46,10 @@ faults:
     title: Sensor signal not reaching A0
     evidence:
       serial_out_of_range: {field: temp_c, min: -10, max: 60}
+      serial_regex: "temp_c=-50\\.0"
       photo_finding: tmp36_signal_open
     hints:
-      - The temperature values are impossible for a room. Check the sensor circuit before the code.
+      - If the temperature values are impossible for a room (for example stuck at -50.0), check the sensor circuit before the code.
       - Follow the TMP36's middle leg. Is it in the same row as the wire to A0?
       - The signal leg is not connected to A0, so the reading is noise or zero.
       - Put the A0 wire in the same row as the TMP36's middle leg and press both in firmly.
@@ -57,10 +59,10 @@ faults:
     title: LED wired to a different pin than the code uses
     evidence:
       photo_finding: led_wrong_pin
-      student_keywords: ["alarm=ON but", "log says on", "says ON but"]
+      student_keywords: ["stays off", "stays dark", "not light", "no light", "doesn't light", "does not light", "led is off"]
       context_serial_regex: "alarm=ON"
     hints:
-      - The log says alarm=ON but the LED stays dark. The code decided correctly; check the LED circuit.
+      - If the log says alarm=ON but the LED stays dark, the code decided correctly; check the LED circuit.
       - Which pin does your LED wire go to, and which pin does ALARM_LED_PIN name?
       - The LED is on a different pin from the one the code switches.
       - Move the LED's wire to pin 8 (or change ALARM_LED_PIN to match the wire).

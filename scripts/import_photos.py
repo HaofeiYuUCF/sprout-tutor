@@ -19,26 +19,27 @@ MANIFEST = ROOT / "eval" / "photo" / "manifest.csv"
 
 def strip_exif(src: Path, dst: Path) -> None:
     try:
-        from PIL import Image
+        from PIL import Image, ImageOps
     except ImportError:
         sys.exit("Pillow is required: pip install pillow")
     with Image.open(src) as im:
-        clean = Image.new(im.mode, im.size)
-        clean.putdata(list(im.getdata()))
-        clean.save(dst, quality=95)
+        upright = ImageOps.exif_transpose(im)  # keep orientation, then drop all metadata
+        upright.save(dst, quality=95, exif=b"")
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("folder", type=Path)
     p.add_argument("--set", choices=["dev", "test"], required=True)
-    p.add_argument("--lighting", default="")
+    p.add_argument("--lighting", required=True, help="e.g. lamp or room")
     p.add_argument("--camera", default="phone")
     a = p.parse_args()
     PHOTOS.mkdir(parents=True, exist_ok=True)
     files = sorted(f for f in a.folder.iterdir() if f.suffix.lower() in (".jpg", ".jpeg", ".png"))
     secrets.SystemRandom().shuffle(files)
     print("original_name,photo_id   <- add this column to key.csv; do not commit it")
+    if not MANIFEST.exists() or not MANIFEST.read_text(encoding="utf-8").startswith("photo_id,"):
+        sys.exit(f"{MANIFEST} is missing its header row")
     with open(MANIFEST, "a", newline="", encoding="utf-8") as m:
         w = csv.writer(m)
         for f in files:

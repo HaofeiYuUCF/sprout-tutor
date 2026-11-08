@@ -28,6 +28,30 @@ def test_one_line_hint_passes(cards, policy):
     assert not g.blocked and g.reasons == []
 
 
+def test_inline_backtick_solution_is_blocked(cards, policy):
+    c = cards["c02_greenhouse_temp"]
+    reply = ("Add these lines: `int raw = analogRead(TEMP_PIN);` then "
+             "`float volts = raw * 5.0 / 1023.0;` then `float tempC = (volts - 0.5) * 100.0;` "
+             "then `Serial.print(\"raw=\");` and `Serial.println(tempC, 1);`")
+    g = guardrail.apply(reply, c.reference.read_text(), policy, student_code=c.starter.read_text())
+    assert g.blocked
+
+
+def test_echoing_students_near_complete_code_is_not_blocked(cards, policy):
+    c = cards["c03_heat_alarm"]
+    student = c.seeds["threshold_inverted"].read_text()
+    reply = f"Here is your sketch; look at the line marked HERE:\n```cpp\n{student}\n```"
+    g = guardrail.apply(reply, c.reference.read_text(), policy, student_code=student)
+    assert not g.blocked and guardrail.CODE_REMOVED in g.text
+
+
+def test_word_cap_never_leaves_an_open_fence(cards, policy):
+    ref = cards["c01_pump_light"].reference.read_text()
+    reply = ("word " * 115) + "\n```cpp\nint x = 1;\n```\n" + "more " * 50
+    g = guardrail.apply(reply, ref, policy)
+    assert g.text.count("```") % 2 == 0
+
+
 def test_word_cap(cards, policy):
     ref = cards["c01_pump_light"].reference.read_text()
     g = guardrail.apply("word " * 400, ref, policy)

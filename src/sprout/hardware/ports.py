@@ -12,8 +12,10 @@ from serial.tools import list_ports
 KNOWN = {
     (0x2341, 0x0043): "UNO R3 (ATmega16U2, Arduino LLC)",
     (0x2341, 0x0001): "UNO (ATmega8U2, Arduino LLC)",
+    (0x2341, 0x0243): "UNO R3 (ATmega16U2, newer PID)",
     (0x2A03, 0x0043): "UNO R3 (ATmega16U2, Arduino SRL)",
     (0x1A86, 0x7523): "UNO-compatible (CH340)",
+    (0x1A86, 0x55D4): "UNO-compatible (CH9102)",
 }
 
 

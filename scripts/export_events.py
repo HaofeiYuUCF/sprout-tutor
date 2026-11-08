@@ -11,13 +11,15 @@ import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REDACT = {"student_text"}
+REDACT = {"student_text", "serial_summary"}  # student free text and device output
+REDACT_DETAIL = {"message"}                   # tool messages can contain local paths and user names
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("out", type=Path)
-    p.add_argument("--redact", action="store_true", help="drop free-text fields written by students")
+    p.add_argument("--redact", action="store_true",
+                   help="drop student free text, serial output and tool messages")
     a = p.parse_args()
     rows, fields = [], []
     for f in sorted((ROOT / "data" / "events").glob("*.jsonl")):
@@ -26,6 +28,9 @@ def main() -> None:
             if a.redact:
                 for k in REDACT:
                     ev.pop(k, None)
+                if isinstance(ev.get("detail"), dict):
+                    for k in REDACT_DETAIL:
+                        ev["detail"].pop(k, None)
             for k, v in ev.items():
                 if isinstance(v, (dict, list)):
                     ev[k] = json.dumps(v, ensure_ascii=False)

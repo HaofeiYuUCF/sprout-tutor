@@ -31,6 +31,8 @@ def load_settings(root: Path | None = None) -> Settings:
     load_dotenv(root / ".env", override=False)
     settings = Settings.model_validate(_read_yaml(root / "config" / "settings.yaml"))
     if p := os.environ.get("SPROUT_LLM_PROVIDER"):
+        if p not in ("mock", "anthropic"):
+            raise ValueError(f"SPROUT_LLM_PROVIDER must be 'mock' or 'anthropic', not {p!r}")
         settings.llm.provider = p  # type: ignore[assignment]
     if p := os.environ.get("SPROUT_SERIAL_PORT"):
         settings.board.serial_port = p

@@ -1,5 +1,5 @@
 schema_version: 1
-policy_version: "0.1.0"
+policy_version: "0.2.0"
 
 # Hint ladder: 1 = where (hardware/software/both), 2 = general check, 3 = specific issue, 4 = fix
 max_step: 4
@@ -13,6 +13,6 @@ entry_step_by_class:
 unlock_events: [code_edit, compile, upload, answered_question]
 
 # Guardrails applied to every LLM reply (curated hints are written to respect them)
-reply_max_words: 160
+reply_max_words: 120
 max_code_lines: 3             # longer code blocks are removed
 reference_similarity_max: 0.6 # replies whose code resembles the reference solution this closely are blocked

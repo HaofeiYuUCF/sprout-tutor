@@ -76,7 +76,9 @@ class AnthropicLLM:
         self.model_id = model
         self.effort = effort
         self.max_tokens = max_tokens
-        self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY") or None)
+        # Short timeout: a stalled request must not keep a student waiting for minutes.
+        self.client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
+                                          timeout=30.0, max_retries=1)
 
     @staticmethod
     def _media_type(data: bytes) -> str:

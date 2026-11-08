@@ -68,8 +68,8 @@ class Tutor:
 
     # ------------------------------------------------------------------ events
     def note(self, ctx: Context, event_type: str, **fields) -> None:
-        """Log a student action; actions in policy.unlock_events count as effort."""
-        self.ladder.record_effort(ctx.card.id, event_type)
+        """Log a student action; actions in policy.unlock_events may count as effort."""
+        self.ladder.record_effort(ctx.card.id, event_type, ctx.code_hash)
         self.logger.log(event_type, card_id=ctx.card.id, card_version=ctx.card.card.version,
                         step_id=ctx.step_id, code_hash=ctx.code_hash, **fields)
 
@@ -115,7 +115,7 @@ class Tutor:
         text = fault.hints[decision.step - 1]
         if decision.repeated and decision.step < self.policy.max_step:
             text = REPEAT_NUDGE + text
-        self.ladder.record_hint(ctx.card.id, fault, decision.step)
+        self.ladder.record_hint(ctx.card.id, fault, decision.step, ctx.code_hash, text)
         return HintResponse(text, decision.step, "curated", fault.id, matches)
 
     def _llm(self, ctx: Context) -> HintResponse:
@@ -123,19 +123,20 @@ class Tutor:
         step = decision.step
         system, user = self.system(), self.user_prompt(ctx, step)
         reference = ctx.card.reference.read_text(encoding="utf-8")
-        self.ladder.record_hint(ctx.card.id, None, step)
         try:
             reply = self.llm.generate(system, user)
-        except Exception as e:  # network, auth, quota: fall back to a generic curated step
-            return HintResponse(GENERIC[step], step, "curated", None, [], ["llm_error"],
+        except Exception as e:  # network, auth, quota: fall back to generic advice
+            self.ladder.record_hint(ctx.card.id, None, step, ctx.code_hash, GENERIC[step])
+            return HintResponse(GENERIC[step], step, "generic", None, [], ["llm_error"],
                                 detail={"llm_error": type(e).__name__})
-        g = guardrail.apply(reply.text or GENERIC[step], reference, self.policy)
+        g = guardrail.apply(reply.text or GENERIC[step], reference, self.policy, student_code=ctx.code)
         fallback = g.blocked or not reply.text
         text = GENERIC[step] if fallback else g.text
         if decision.repeated and step < self.policy.max_step:
             text = REPEAT_NUDGE + text
+        self.ladder.record_hint(ctx.card.id, None, step, ctx.code_hash, text)
         return HintResponse(
-            text, step, "curated" if fallback else "llm", None, [], g.reasons, reply.model_id,
+            text, step, "generic" if fallback else "llm", None, [], g.reasons, reply.model_id,
             prompt_hash(reply.model_id, system, user),
             detail={"stop_reason": reply.stop_reason, "cached": reply.cached,
                     "raw_reply_chars": len(reply.text), "llm_fallback_to_generic": fallback})

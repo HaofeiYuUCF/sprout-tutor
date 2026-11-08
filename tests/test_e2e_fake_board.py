@@ -56,9 +56,13 @@ def test_unknown_problem_goes_to_llm_with_guardrail(tmp_path, cards, make_tutor)
     ref = card.reference.read_text()
     leaky = MockLLM(reply=f"Sure!\n```cpp\n{ref}\n```")
     tutor = make_tutor(llm=leaky)
-    ctx = Context(card, ref, None, ["PUMP ON", "PUMP OFF"], "how do I make it blink faster?")
+    # Student configured the pin but has not written the blink logic yet (no curated fault fits).
+    code = card.starter.read_text().replace(
+        "// TODO: set PUMP_LED_PIN as an output", "pinMode(PUMP_LED_PIN, OUTPUT);", 1)
+    ctx = Context(card, code, None, [], "how do I make it blink faster?")
     h = tutor.request_hint(ctx)
-    assert h.fault_id is None and "resembles_reference_solution" in h.guardrail_reasons
+    assert h.fault_id is None
+    assert "resembles_reference_solution" in h.guardrail_reasons and h.source == "generic"
     assert "void setup" not in h.text
 
 
