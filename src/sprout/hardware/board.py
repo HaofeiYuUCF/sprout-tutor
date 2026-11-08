@@ -84,10 +84,14 @@ class ArduinoCliBoard:
 
     @staticmethod
     def _json(proc: subprocess.CompletedProcess) -> dict:
-        try:
-            return json.loads(proc.stdout) if proc.stdout.strip() else {}
-        except json.JSONDecodeError:
-            return {}
+        """arduino-cli 1.x prints build results to stdout, but tool errors as JSON on stderr."""
+        for stream in (proc.stdout, proc.stderr):
+            if stream and stream.strip().startswith("{"):
+                try:
+                    return json.loads(stream)
+                except json.JSONDecodeError:
+                    continue
+        return {}
 
     def compile(self, sketch_dir: Path) -> CompileResult:
         t0 = time.time()
@@ -96,13 +100,15 @@ class ArduinoCliBoard:
         ok = bool(data.get("success", proc.returncode == 0))
         # arduino-cli 1.x: compiler messages in compiler_err; tool failures (sketch not found,
         # core missing, bad FQBN) in error.
-        err_text = (data.get("compiler_err") or data.get("error") or proc.stderr
-                    or ("" if data else proc.stdout) or "")
+        err_text = (data.get("compiler_err") or data.get("error")
+                    or ("" if data else (proc.stderr or proc.stdout)) or "")
         diags = []
         for d in (data.get("builder_result") or {}).get("diagnostics") or []:
+            # The message carries the source line and a caret on extra lines; keep the first.
+            message = str(d.get("message", "")).splitlines()[0] if d.get("message") else ""
             diags.append(Diagnostic(Path(str(d.get("file", ""))).name, int(d.get("line") or 0),
                                     d.get("column"), str(d.get("severity", "error")).lower(),
-                                    str(d.get("message", ""))))
+                                    message))
         return CompileResult(ok, diags or parse_diagnostics(err_text), err_text, time.time() - t0)
 
     def upload(self, sketch_dir: Path) -> UploadResult:

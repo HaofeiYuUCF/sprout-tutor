@@ -15,6 +15,7 @@ Write-Host "Downloading arduino-cli $Version from $Url"
 Invoke-WebRequest -Uri $Url -OutFile $Zip
 Expand-Archive -Path $Zip -DestinationPath $Tools -Force
 Remove-Item $Zip
+Get-ChildItem $Tools -Recurse | Unblock-File   # avoid SmartScreen blocking the downloaded exe
 
 # Write a git-ignored config with absolute, repo-local directories.
 $Cfg = Join-Path $Root "tools\arduino-cli.yaml"
