@@ -1,0 +1,66 @@
+schema_version: 1
+card_id: c01_pump_light
+# Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
+faults:
+  - id: missing_semicolon
+    class: compile
+    title: Missing semicolon
+    evidence:
+      compile_regex: "expected ';' before"
+    seed: missing_semicolon
+    hints:
+      - The problem is in your code, not your wiring. The compiler stopped before uploading.
+      - Read the first error message. It names a line number. Look at the line just above it, too.
+      - A statement on or just before that line is missing the character that ends every C++ statement.
+      - Add a semicolon ( ; ) at the end of the statement the compiler points to, then compile again.
+
+  - id: pin_mode_missing
+    class: logic
+    title: Output pin not configured
+    evidence:
+      code_missing_regex: "pinMode\\s*\\("
+      student_keywords: [dim, faint, barely]
+    seed: pin_mode_missing
+    hints:
+      - This looks like a code issue in how the LED pin is set up, not a wiring fault. If your serial log shows PUMP ON / PUMP OFF, the board and upload are fine.
+      - Every pin you drive must be told what job it has before loop() starts. Check what setup() does.
+      - setup() never configures pin 8 as an output, so the LED only gets a weak trickle of current.
+      - "In setup(), add a line that sets PUMP_LED_PIN to OUTPUT using pinMode."
+
+  - id: led_not_lighting
+    class: wiring
+    title: LED does not light although the code runs
+    evidence:
+      context_serial_regex: "PUMP (ON|OFF)"
+      student_keywords: ["not light", "doesn't light", "does not light", "no light", "stays off", "won't light"]
+      photo_finding: led_circuit_open
+    hints:
+      - The serial log alternates PUMP ON / PUMP OFF, so your code is fine. Look at the circuit.
+      - "Trace the path: pin 8 → resistor → LED long leg → LED short leg → GND. Is every link in the same breadboard row?"
+      - An LED only conducts one way, and parts in neighbouring rows are not connected. Check the LED's direction and each row.
+      - Put the LED's long leg in the row with the resistor and its short leg in a row wired to GND, then watch it blink.
+
+  - id: missing_resistor
+    class: wiring
+    title: LED wired without its resistor
+    safety_critical: true
+    evidence:
+      photo_finding: missing_resistor
+      student_keywords: ["very bright", "no resistor", "burned", "burnt"]
+    hints:
+      - Unplug the USB cable first. An LED without a resistor draws too much current and can damage the LED or the board.
+      - Every LED needs a resistor in series. Look for it on the path from pin 8 to GND.
+      - The resistor is missing from the LED's path.
+      - Unplug USB, put the 220 ohm resistor between pin 8 and the LED's long leg, then plug back in.
+
+  - id: no_serial_output
+    class: serial
+    title: Nothing in the serial log
+    evidence:
+      code_missing_regex: "Serial\\.begin\\s*\\("
+      student_keywords: ["serial is empty", "nothing in serial", "no output", "serial monitor blank"]
+    hints:
+      - Without serial output you cannot see what the board is doing. Start with the code.
+      - Serial communication has to be started in setup() at the same speed the monitor uses.
+      - Serial.begin is missing, or the monitor is set to a different speed than 9600.
+      - Add Serial.begin(9600); as the first line of setup() and keep the monitor at 9600 baud.

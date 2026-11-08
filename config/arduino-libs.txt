@@ -1,0 +1,2 @@
+# Pinned Arduino libraries, one per line: Name@x.y.z
+# Cards c01–c03 need none.

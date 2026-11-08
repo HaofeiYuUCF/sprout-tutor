@@ -1,0 +1,53 @@
+schema_version: 1
+id: c03_heat_alarm
+title: Greenhouse heat alarm
+version: 1
+stage: seed
+learning_objectives:
+  - Combine an analog input and a digital output in one sketch.
+  - Use an if/else threshold to make a decision from a sensor reading.
+  - Test a threshold by deliberately changing the input (warming the sensor).
+agriculture_connection: >-
+  Above about 30 °C many greenhouse crops lose yield, so controllers open vents or start
+  fans when a threshold is crossed. This alarm is the first half of that controller; in a
+  later card the LED pin drives a relay for a low-voltage fan.
+parts:
+  - {name: Arduino UNO R3 (or compatible), qty: 1}
+  - {name: Breadboard, qty: 1}
+  - {name: TMP36 temperature sensor, qty: 1}
+  - {name: Red LED, qty: 1}
+  - {name: 220 ohm resistor, qty: 1}
+  - {name: Jumper wire, qty: 6}
+  - {name: USB cable, qty: 1}
+safety:
+  - Low-voltage DC only (5 V from USB).
+  - Always put a resistor in series with an LED.
+  - If the sensor feels hot, unplug USB at once. Power and ground are swapped.
+tinkercad:
+  note: >-
+    Combine the circuits from cards 01 and 02 in Tinkercad: TMP36 on A0, LED with a 220 ohm
+    resistor on pin 8. Run the simulation and drag the temperature above and below 30 °C.
+steps:
+  - id: simulate
+    kind: simulate
+    text: Build the combined circuit in Tinkercad and confirm the LED turns on above 30 °C.
+  - id: build
+    kind: build
+    text: >-
+      Build it on the breadboard. Keep the sensor and the LED on separate rows. Red wires for
+      5 V, black for GND. This is the circuit used for the photo check.
+  - id: code
+    kind: code
+    text: >-
+      Start from your card 02 code. Add the LED pin as an output. If temp_c is above 30.0,
+      turn the LED on; otherwise turn it off. Print "temp_c=24.8 alarm=OFF" each reading.
+  - id: run
+    kind: run
+    text: >-
+      Upload. At room temperature the alarm should be OFF. Pinch the sensor until it passes
+      30 °C and watch the LED and the log switch to ON.
+  - id: reflect
+    kind: reflect
+    text: >-
+      If the temperature hovers right at 30 °C, the alarm will flicker on and off. Real
+      controllers avoid this. How could you change the rule so a fan does not chatter?

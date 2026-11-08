@@ -1,0 +1,66 @@
+schema_version: 1
+card_id: c03_heat_alarm
+# Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
+faults:
+  - id: threshold_inverted
+    class: logic
+    title: Comparison reversed
+    evidence:
+      code_regex: "tempC\\s*<=?\\s*ALARM_C|ALARM_C\\s*>=?\\s*tempC"
+      serial_regex: "temp_c=2[0-6]\\.\\d alarm=ON"
+    seed: threshold_inverted
+    hints:
+      - The alarm is ON at room temperature. The wiring and the sensor work; look at the decision in your code.
+      - Read your if-condition out loud as a sentence. Does it say "too hot"?
+      - The comparison is reversed, so the alarm turns on when it is cooler than the threshold.
+      - Change the comparison so the alarm is on only when tempC is greater than ALARM_C.
+
+  - id: alarm_never_on
+    class: logic
+    title: Alarm never turns on during testing
+    evidence:
+      student_keywords: ["never turns on", "never on", "always off", "stays off"]
+      context_serial_regex: "alarm=OFF"
+    hints:
+      - The log shows alarm=OFF, so the code runs. The question is whether the input ever crosses the threshold.
+      - Watch temp_c while you pinch the sensor. How high does it get, compared with ALARM_C?
+      - A finger warms the sensor only to about 28–32 °C, so a 30 °C threshold may never be crossed.
+      - For testing, lower ALARM_C a few degrees above your room reading, confirm the LED switches, then set it back.
+
+  - id: led_no_resistor
+    class: wiring
+    title: LED wired without its resistor
+    safety_critical: true
+    evidence:
+      photo_finding: missing_resistor
+      student_keywords: ["very bright", "no resistor", "burned", "burnt"]
+    hints:
+      - Unplug the USB cable first. An LED without a resistor draws too much current.
+      - Every LED needs a resistor in series. Look for it between pin 8 and GND.
+      - The resistor is missing from the LED's path.
+      - Unplug USB, put the 220 ohm resistor between pin 8 and the LED's long leg, then plug back in.
+
+  - id: sensor_signal_unconnected
+    class: wiring
+    title: Sensor signal not reaching A0
+    evidence:
+      serial_out_of_range: {field: temp_c, min: -10, max: 60}
+      photo_finding: tmp36_signal_open
+    hints:
+      - The temperature values are impossible for a room. Check the sensor circuit before the code.
+      - Follow the TMP36's middle leg. Is it in the same row as the wire to A0?
+      - The signal leg is not connected to A0, so the reading is noise or zero.
+      - Put the A0 wire in the same row as the TMP36's middle leg and press both in firmly.
+
+  - id: led_wrong_pin
+    class: wiring
+    title: LED wired to a different pin than the code uses
+    evidence:
+      photo_finding: led_wrong_pin
+      student_keywords: ["alarm=ON but", "log says on", "says ON but"]
+      context_serial_regex: "alarm=ON"
+    hints:
+      - The log says alarm=ON but the LED stays dark. The code decided correctly; check the LED circuit.
+      - Which pin does your LED wire go to, and which pin does ALARM_LED_PIN name?
+      - The LED is on a different pin from the one the code switches.
+      - Move the LED's wire to pin 8 (or change ALARM_LED_PIN to match the wire).

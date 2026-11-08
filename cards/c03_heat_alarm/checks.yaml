@@ -1,0 +1,14 @@
+schema_version: 1
+checks:
+  - id: compiles
+    type: compile_ok
+  - id: plausible_room_temperature
+    type: serial_range
+    field: temp_c
+    min: 10
+    max: 45
+    n_samples: 5
+  - id: alarm_state_printed
+    type: serial_regex
+    regex: "alarm=(ON|OFF)"
+    min_matches: 3

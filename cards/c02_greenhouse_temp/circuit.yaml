@@ -1,0 +1,8 @@
+schema_version: 1
+components:
+  - {ref: UNO, type: arduino_uno_r3}
+  - {ref: U1, type: tmp36}
+nodes:
+  - {name: vcc, members: [UNO.5V, U1.vs]}
+  - {name: signal, members: [U1.vout, UNO.A0]}
+  - {name: gnd, members: [U1.gnd, UNO.GND]}

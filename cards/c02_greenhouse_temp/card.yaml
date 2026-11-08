@@ -1,0 +1,49 @@
+schema_version: 1
+id: c02_greenhouse_temp
+title: Read greenhouse temperature
+version: 1
+stage: seed
+learning_objectives:
+  - Read an analog sensor with analogRead.
+  - Convert a raw reading (0–1023) to volts and then to degrees Celsius.
+  - Use the serial plot to judge whether a reading is plausible.
+agriculture_connection: >-
+  Greenhouse fans, vents and shade cloths are switched on temperature. Many crops slow
+  down above about 30 °C, so growers watch temperature closely. This card measures it;
+  the next card acts on it.
+parts:
+  - {name: Arduino UNO R3 (or compatible), qty: 1}
+  - {name: Breadboard, qty: 1}
+  - {name: TMP36 temperature sensor, qty: 1}
+  - {name: Jumper wire, qty: 3}
+  - {name: USB cable, qty: 1}
+safety:
+  - Low-voltage DC only (5 V from USB).
+  - If the sensor feels hot to the touch, unplug USB at once. Power and ground are swapped.
+tinkercad:
+  note: >-
+    In Tinkercad Circuits, place an Arduino Uno R3 and a "Temperature Sensor [TMP36]". With
+    the flat face toward you: left leg to 5V, middle leg to A0, right leg to GND. Run the
+    simulation and drag the temperature slider to see the reading change.
+steps:
+  - id: simulate
+    kind: simulate
+    text: Build and run the circuit in Tinkercad. Move the temperature slider and watch the serial output.
+  - id: build
+    kind: build
+    text: >-
+      Build it on the breadboard. Flat face toward you: left leg to 5 V (red), middle leg to
+      A0, right leg to GND (black). Check the legs before plugging in USB.
+  - id: code
+    kind: code
+    text: >-
+      In loop(), read A0, convert the raw value to volts (raw × 5.0 / 1023.0), then to °C
+      ((volts − 0.5) × 100). Print a line like "raw=153 temp_c=24.8" once a second.
+  - id: run
+    kind: run
+    text: Upload and watch the plot. Room temperature should read about 20–26 °C. Pinch the sensor and it should rise.
+  - id: reflect
+    kind: reflect
+    text: >-
+      Your reading jumps by a few tenths of a degree. How would you decide whether a 0.5 °C
+      change is real? What reference could you compare against?
