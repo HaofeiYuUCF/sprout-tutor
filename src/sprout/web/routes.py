@@ -113,6 +113,7 @@ def register(app: FastAPI, root: Path | None = None) -> None:
             "sketches": sketch_list(root, include_seeds=test_mode),
             "cards": {cid: card_view(c) for cid, c in cards.items()},
             "llm_provider": s.llm.provider,
+            "test_mode": test_mode,
             "compiler_ready": service.available(),
             "known_boards": [{"usbVendorId": v, "usbProductId": p, "name": n}
                              for (v, p), n in KNOWN.items()],

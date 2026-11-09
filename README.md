@@ -72,5 +72,13 @@ URL for an anonymous learner ID (events go to `data/events/`, same format as the
 Set `SPROUT_LLM_PROVIDER=anthropic` in `.env` for real AI hints; curated hints need no AI.
 In test mode the Sketch list also offers the seeded-fault sketches for demos.
 
+Simulator (LED test, no board needed): below the editor, drag the LED and 220 ohm resistor onto
+the breadboard, click pin-to-hole to add wires, and press **Run in simulator**. The sketch in the
+editor is compiled on the server and runs on an emulated ATmega328P in the browser, using
+[avr8js](https://github.com/wokwi/avr8js) 0.21.1 (MIT, vendored in `src/sprout/web/static/vendor/avr8js`,
+see `VENDORED.md`). Drawings and circuit rules are our own. Rule-based feedback covers a backwards
+LED, a missing resistor, a short to GND, and a wire on a different pin than the code drives.
+Simulated serial output also counts for **Check my work**.
+
 Uploader tests without a board: start with `SPROUT_WEBLAB_TEST=1`, then open
 http://localhost:8080/weblab/test/stk500_test.html (simulated bootloader, 12 checks).

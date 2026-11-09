@@ -2,6 +2,7 @@
   --bg: #f6f7f2; --panel: #ffffff; --fg: #1f2a1c; --muted: #5f6b5a; --line: #d9ddd2;
   --accent: #2f7d32; --accent-fg: #ffffff; --warn-bg: #fff4d6; --warn-fg: #6b4e00;
   --err: #b3261e; --ok: #2f7d32; --code-bg: #fbfcf8; --mon-bg: #14200f; --mon-fg: #c9f2b8;
+  --sim-bg: #e9ece3;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
@@ -9,6 +10,7 @@
     --bg: #121611; --panel: #1b2119; --fg: #e3e9dd; --muted: #9aa692; --line: #303a2c;
     --accent: #6cc070; --accent-fg: #0d150c; --warn-bg: #3a3112; --warn-fg: #f3dc8f;
     --err: #ff8a80; --ok: #8fd694; --code-bg: #151a13; --mon-bg: #0b1009; --mon-fg: #b8eaa5;
+    --sim-bg: #232b20;
     color-scheme: dark;
   }
 }
@@ -116,3 +118,56 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .confirm { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 6px;
   background: var(--warn-bg); color: var(--warn-fg); font-size: 13.5px; }
 button.danger { border-color: var(--err); color: var(--err); }
+/* ---------- simulator ---------- */
+.sim-help { margin: 0; }
+.sim-wrap { overflow-x: auto; border-radius: 6px; background: var(--sim-bg); }
+#sim-svg { display: block; width: 100%; min-width: 720px; height: auto; user-select: none; touch-action: none; }
+.sim-bar { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.sim-hover { font-family: "Cascadia Mono", Consolas, monospace; font-size: 12px; color: var(--muted); }
+.sim-bottom { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 14px; }
+@media (max-width: 860px) { .sim-bottom { grid-template-columns: minmax(0, 1fr); } }
+.sim-feedback { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.sim-feedback .ok { color: var(--ok); }
+.sim-feedback .warn { color: var(--err); }
+.sim-feedback .todo { color: var(--muted); }
+.sim-serial-box { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sim-serial { height: 140px; }
+/* drawing: physical objects keep their real colours in both themes */
+.uno { fill: #13707e; stroke: #0c4f59; stroke-width: 2; }
+.uno-usb { fill: #b8bcc2; stroke: #7d8288; }
+.uno-jack { fill: #2b2b2b; }
+.uno-chip { fill: #232323; }
+.uno-chip-label { fill: #bbb; font: 10px "Cascadia Mono", Consolas, monospace; text-anchor: middle; }
+.uno-name { fill: #e8f4f6; font: 700 30px "Segoe UI", system-ui, sans-serif; letter-spacing: 0.08em; }
+.uno-small { fill: #d6eef1; font: 9px "Segoe UI", system-ui, sans-serif; letter-spacing: 0.06em; }
+.uno-header { fill: #1d1d1d; }
+.uno-led { fill: #6b5a20; }
+.uno-led.on { fill: #ffcf3a; filter: url(#sim-glow); }
+.pin { fill: #c9c9c9; stroke: #555; stroke-width: 1; cursor: crosshair; }
+.pin:hover, .hole:hover { fill: #ffd43b; }
+.pin-label { fill: #e8f4f6; font: 9px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
+.bb { fill: #f1eee6; stroke: #cfcabd; }
+.bb-channel { fill: #e2ddd0; }
+.bb-label { fill: #8a8577; font: 10px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
+.rail-neg { stroke: #2f6fd6; stroke-width: 2; }
+.rail-pos { stroke: #d6336c; stroke-width: 2; }
+.hole { fill: #3d3a33; cursor: crosshair; }
+.tray-label { fill: var(--muted); font: 12px "Segoe UI", system-ui, sans-serif; }
+.part { cursor: grab; }
+.part.loose .leg-tip { fill: #e8862a; }
+.part-hit { fill: transparent; }
+.lead { stroke: #9aa0a6; stroke-width: 2.5; stroke-linecap: round; }
+.leg-tip { fill: #6b7075; }
+.led-body { fill: #8f1d1d; stroke: #5c1010; }
+.led-body.lit { fill: #ff3b30; stroke: #ff8a80; }
+.led-rim { fill: #7a1616; }
+.led-plus { fill: var(--fg); font: 700 12px "Segoe UI", system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+.res-body { fill: #d9c49a; stroke: #a8915f; }
+.res-label { fill: var(--fg); font: 10px "Segoe UI", system-ui, sans-serif; text-anchor: middle; }
+.wire { fill: none; stroke-width: 4; stroke-linecap: round; cursor: pointer; }
+.wire.selected { stroke-dasharray: 7 5; stroke-width: 5; }
+.wire-shadow { fill: none; stroke: rgba(0, 0, 0, 0.25); stroke-width: 6; pointer-events: none; }
+.wire-end { pointer-events: none; }
+.rubber { stroke: #ffd43b; stroke-width: 2.5; stroke-dasharray: 5 4; }
+.led-flat { stroke: #5c1010; stroke-width: 3; }
+.part.loose .led-rim { stroke: #e8862a; stroke-width: 2; }

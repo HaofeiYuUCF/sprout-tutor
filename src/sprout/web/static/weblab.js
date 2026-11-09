@@ -379,12 +379,20 @@
     }
   }
 
+  // ---------- hooks for the simulator module (sim.js) ----------
+  window.SproutLab = {
+    compile: () => compile(),                 // { hex, ... } or null (errors shown under the editor)
+    resetSerial: () => { state.serialLines = []; state.serialPartial = ""; },
+    feedSerial: (text) => collectSerial(text), // simulated output also counts for Check my work
+  };
+
   // ---------- start ----------
   async function init() {
     if (!("serial" in navigator)) $("unsupported").hidden = false;
     const r = await fetch("/api/weblab/config");
     state.config = await r.json();
     if (!state.config.compiler_ready) $("no-compiler").hidden = false;
+    if (state.config.test_mode && $("sim-example")) $("sim-example").hidden = false;
     const fromUrl = new URLSearchParams(location.search).get("learner");
     if (fromUrl && LEARNER_ID.test(fromUrl)) state.learner = fromUrl;
     $("learner").textContent = state.learner;

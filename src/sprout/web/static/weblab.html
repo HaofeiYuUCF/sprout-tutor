@@ -105,6 +105,32 @@
     </section>
   </div>
 
+  <section class="panel sim" aria-label="Simulator">
+    <div class="panel-head">
+      <span class="label">Simulator</span>
+      <span class="muted">LED test &middot; no board needed</span>
+      <span class="spacer"></span>
+      <button id="sim-run" class="primary">Run in simulator</button>
+      <button id="sim-stop" disabled>Stop</button>
+      <button id="sim-delete" disabled>Delete wire</button>
+      <button id="sim-reset">Reset</button>
+      <button id="sim-example" hidden>Show example wiring</button>
+    </div>
+    <p class="muted sim-help">Drag the LED and the resistor onto the breadboard. To add a wire, click a
+      pin or hole, then click another. Double-click the LED to flip it. Click a wire and press
+      Delete to remove it. The simulator runs the sketch in the editor.</p>
+    <div class="sim-wrap"><svg id="sim-svg" viewBox="0 0 960 440" role="img"
+      aria-label="Arduino UNO and breadboard"></svg></div>
+    <div class="sim-bar"><span id="sim-status" class="muted"></span><span id="sim-hover" class="sim-hover"></span></div>
+    <div class="sim-bottom">
+      <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>
+      <div class="sim-serial-box">
+        <span class="label">Simulated serial output</span>
+        <pre id="sim-serial" class="monitor sim-serial"></pre>
+      </div>
+    </div>
+  </section>
+
   <details class="panel log">
     <summary>Upload trials this session <span id="trial-count" class="muted"></span></summary>
     <p class="muted">Each upload is also saved on this computer in
@@ -117,5 +143,6 @@
 
 <script src="/weblab/static/stk500.js"></script>
 <script src="/weblab/static/weblab.js"></script>
+<script type="module" src="/weblab/static/sim.js"></script>
 </body>
 </html>
