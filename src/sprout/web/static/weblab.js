@@ -30,7 +30,11 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (!r.ok) throw new Error(`${url} returned ${r.status}`);
+    if (!r.ok) {
+      let reason = "";
+      try { reason = (await r.json()).error || ""; } catch (_) { /* not JSON */ }
+      throw new Error(`${url} returned ${r.status}${reason ? `: ${reason}` : ""}`);
+    }
     return r.json();
   }
 

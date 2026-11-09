@@ -7,6 +7,7 @@ which this server never approves).
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -23,6 +24,7 @@ from .compile_service import HELLO_SKETCH, CompileService, append_trial, clean_t
 from .tutor_api import BadRequest, WebTutor, card_view
 
 STATIC = Path(__file__).parent / "static"
+log = logging.getLogger("sprout.weblab")
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 
 
@@ -89,10 +91,16 @@ def register(app: FastAPI, root: Path | None = None) -> None:
         """Guard, parse, run a WebTutor action in the thread pool; BadRequest becomes a 400."""
         if bad := _guard(request, json_body=True):
             return bad
+        body: object = None
         try:
             body = await _body(request)
             return await run_in_threadpool(fn, body)
         except BadRequest as e:
+            # Log the reason and the shape of the request (types only, no content) for debugging.
+            b = body if isinstance(body, dict) else {}
+            shape = {k: type(v).__name__ for k, v in b.items()}
+            log.warning("400 %s: %s; fields=%s; learner=%r card_id=%r", request.url.path, e, shape,
+                        str(b.get("learner"))[:20], str(b.get("card_id"))[:40])
             return JSONResponse({"error": str(e)}, 400)
 
     @app.get("/weblab")
