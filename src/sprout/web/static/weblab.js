@@ -301,6 +301,7 @@
   }
 
   async function checkWork() {
+    if (!state.cardId) return; // the hello test has no card to check
     state.asking = true;
     refreshButtons();
     try {
@@ -319,6 +320,7 @@
   }
 
   async function askHint() {
+    if (!state.cardId) return; // the tutor works per card
     state.asking = true;
     refreshButtons();
     const message = $("question").value;
