@@ -1,5 +1,5 @@
 schema_version: 1
-card_id: c04_greenhouse_controller
+card_id: c05_greenhouse_controller
 # Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
 faults:
   - id: comparison_reversed
@@ -47,10 +47,10 @@ faults:
       student_keywords: ["not spin", "doesn't spin", "does not spin", "won't spin", "fan stays off", "fan doesn't"]
       photo_finding: fan_circuit_open
     hints:
-      - If the messages say fan=ON but the fan does not turn, the code decided correctly. Check the fan circuit from card 1.
+      - If the messages say fan=ON but the fan does not turn, the code decided correctly. Check the fan circuit from card 3.
       - "Trace it: pin 9 to the 1k resistor to the transistor's middle leg; 5V to the motor to the transistor's right leg; the left leg to GND."
       - A link in the fan circuit is missing, or the transistor is turned around.
-      - Rebuild the fan circuit as in card 1 and check that it shares the GND rail with the UNO.
+      - Rebuild the fan circuit as in card 3 and check that it shares the GND rail with the UNO.
 
   - id: buzzer_silent
     class: wiring

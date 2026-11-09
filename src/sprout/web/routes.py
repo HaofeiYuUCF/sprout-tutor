@@ -220,6 +220,14 @@ def register(app: FastAPI, root: Path | None = None) -> None:
         return await tutor_call(request, lambda b: tutor.save_work(
             b.get("learner"), b.get("card_id"), b.get("code"), b.get("sim"), b.get("reflection")))
 
+    @app.post("/api/weblab/learn")
+    async def weblab_learn(request: Request):
+        def act(b):
+            tutor.record_learning(b.get("learner"), b.get("card_id"), b.get("kind"), b.get("item"),
+                                  b.get("correct"))
+            return {"ok": True}
+        return await tutor_call(request, act)
+
     @app.post("/api/weblab/progress")
     async def weblab_progress(request: Request):
         return await tutor_call(request, lambda b: tutor.progress_summary(b.get("learner")))

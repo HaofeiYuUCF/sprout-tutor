@@ -1,11 +1,11 @@
-// Card 01: Greenhouse ventilation fan (starter)
-// First an LED + 220 ohm resistor on pin 9, then the transistor and fan on pin 9.
+// Card 03: Greenhouse ventilation fan (starter)
+// Your card 1 blink program, now switching the fan through the transistor on pin 9.
 
 const int FAN_PIN = 9;
 
 void setup() {
   Serial.begin(9600);
-  // TODO: set FAN_PIN as an output
+  // TODO: make FAN_PIN an output
 }
 
 void loop() {

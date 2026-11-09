@@ -1,10 +1,10 @@
-// Seeded fault: missing semicolon (compile error)
+// Card 03: Greenhouse ventilation fan (reference solution; never shown to students)
 
 const int FAN_PIN = 9;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(FAN_PIN, OUTPUT)
+  pinMode(FAN_PIN, OUTPUT);
 }
 
 void loop() {

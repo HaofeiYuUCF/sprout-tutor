@@ -1,4 +1,4 @@
-// Card 03: Greenhouse heat alarm (starter)
+// Card 04: Greenhouse heat alarm (starter)
 // Thermistor divider on A0 (as in card 2). Active buzzer: long leg (+) to pin 8, short leg to GND.
 
 const int TEMP_PIN = A0;

@@ -8,7 +8,7 @@ def _err(msg):
 
 
 def test_compile_error_matches_curated_fault(cards):
-    c = cards["c01_vent_fan"]
+    c = cards["c01_light_led"]
     ctx = Context(c, c.seeds["missing_semicolon"].read_text(),
                   compile_result=_err("expected ';' before '}' token"))
     m = match_faults(ctx)
@@ -16,7 +16,7 @@ def test_compile_error_matches_curated_fault(cards):
 
 
 def test_compile_error_suppresses_non_compile_faults(cards):
-    c = cards["c01_vent_fan"]
+    c = cards["c01_light_led"]
     ctx = Context(c, "void setup(){} void loop(){}", compile_result=_err("some other error"),
                   student_text="the LED does not light")
     assert match_faults(ctx) == []
@@ -34,7 +34,7 @@ def test_integer_division_beats_generic_out_of_range(cards):
 
 
 def test_safety_fault_ranks_first(cards):
-    c = cards["c01_vent_fan"]
+    c = cards["c03_vent_fan"]
     ctx = Context(c, c.reference.read_text(), compile_result=CompileResult(True),
                   serial_lines=["FAN ON", "FAN OFF"],
                   student_text="the transistor gets hot and the fan does not spin")
@@ -42,14 +42,14 @@ def test_safety_fault_ranks_first(cards):
 
 
 def test_context_channel_alone_does_not_trigger(cards):
-    c = cards["c01_vent_fan"]
+    c = cards["c01_light_led"]
     ctx = Context(c, c.reference.read_text(), compile_result=CompileResult(True),
-                  serial_lines=["FAN ON", "FAN OFF"])
+                  serial_lines=["LED ON", "LED OFF"])
     assert match_faults(ctx) == []
 
 
 def test_comments_do_not_count_as_code(cards):
-    c = cards["c01_vent_fan"]
-    code = c.seeds["pin_mode_missing"].read_text() + "\n// pinMode(FAN_PIN, OUTPUT);"
-    ctx = Context(c, code, compile_result=CompileResult(True), serial_lines=["FAN ON"])
+    c = cards["c01_light_led"]
+    code = c.seeds["pin_mode_missing"].read_text() + "\n// pinMode(LED_PIN, OUTPUT);"
+    ctx = Context(c, code, compile_result=CompileResult(True), serial_lines=["LED ON"])
     assert match_faults(ctx)[0].fault.id == "pin_mode_missing"

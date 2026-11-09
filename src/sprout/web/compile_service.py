@@ -15,16 +15,15 @@ MAX_CODE_BYTES = 64_000
 SKETCH = "weblab"  # arduino-cli needs <folder>/<folder>.ino
 
 HELLO_SKETCH = """\
-// SPROUT Web Lab test: needs only the UNO and a USB cable.
-// The built-in LED (marked "L", pin 13) blinks, and the board counts in the serial monitor.
-// Try it: change 500 to 100, upload again, and watch the LED blink faster.
+// SPROUT board check: needs only the UNO and a USB cable.
+// The small light marked "L" (pin 13) blinks, and the board sends a message each time.
 
 int count = 0;
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   Serial.begin(9600);
-  Serial.println("hello from the UNO");
+  Serial.println("Hello! Your board is working.");
 }
 
 void loop() {
@@ -33,7 +32,7 @@ void loop() {
   digitalWrite(LED_BUILTIN, LOW);
   delay(500);
   count++;
-  Serial.print("count=");
+  Serial.print("Your board is working! Blink ");
   Serial.println(count);
 }
 """

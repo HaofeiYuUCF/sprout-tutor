@@ -22,7 +22,7 @@
     { id: "wire", short: "Wire it", title: "Wire it in the simulator", regions: ["sim", "simside"],
       mode: "sim", cardKind: "simulate", tutorStep: "simulate",
       tips: ["Drag a part onto the breadboard. It snaps into the holes.",
-        "Holes in the same short column (rows a–e, or rows f–j) are connected to each other.",
+        "Hover over a hole: every hole connected to it lights up green.",
         "To add a wire, click a pin or a hole, then click another one.",
         "Double-click the LED or the sensor to turn it around."] },
     { id: "code", short: "Write the code", title: "Write the code", regions: ["editor", "todo"],
@@ -51,7 +51,7 @@
   const WARMUP = [
     { id: "warmup", short: "Board check", title: "Check that your board works", regions: ["board"], mode: "board",
       text: () => "Plug in your UNO, connect it, and send the test program. The small light marked “L” " +
-        "on the board should blink once a second, and the messages should count 1, 2, 3…",
+        "on the board should blink once a second, and the board should say “Your board is working!”",
       tips: ["If the list in step 2 is empty, try another USB port or another cable.",
         "Close the Arduino IDE if it is open: only one program can talk to the board at a time."] },
   ];
@@ -79,6 +79,13 @@
     return r.json();
   }
   const quietly = (p) => p.catch(() => { /* logging is best-effort */ });
+  /** A self-check answer or an opened explanation (logged so the pilot can see what helps). */
+  const learn = (kind, item, correct) => {
+    if (!state.learner) return;
+    quietly(postJson("/api/weblab/learn", { learner: state.learner, card_id: state.cardId, kind, item,
+      ...(kind === "quiz" ? { correct } : {}) }));
+  };
+  const today = () => new Date().toISOString().slice(0, 10);
 
   function el(tag, cls, text) {
     const e = document.createElement(tag);
@@ -125,6 +132,7 @@
     store.set("sprout.learner", id);
     $("who-id").textContent = id;
     $("who").hidden = false;
+    $("btn-basics").hidden = false;
     $("signin-err").hidden = true;
     openCardList();
   }
@@ -135,6 +143,8 @@
     state.learner = null;
     state.cardId = null;
     $("who").hidden = true;
+    $("btn-basics").hidden = true;
+    $("glossary").hidden = true;
     $("signin-code").value = "";
     showScreen("signin");
     $("signin-code").focus();
@@ -147,6 +157,7 @@
     state.warmup = false;
     document.dispatchEvent(new CustomEvent("sprout:card", { detail: null }));
     showScreen("cards");
+    renderWarmupPanel();
     const badges = {};
     const tiles = Object.values(state.config.cards).map((c, i) => {
       const b = el("button", "tile");
@@ -237,6 +248,7 @@
     state.steps = WARMUP;
     setCode((state.config.sketches.find((s) => s.id === "hello") || {}).code || "");
     $("card-title").textContent = "Check that your board works";
+    $("board-ok").hidden = true;
     $("btn-restart").hidden = true;
     setSaveStatus("");
     $("upload-out").replaceChildren();
@@ -247,7 +259,9 @@
   function renderCardInfo(c) {
     $("card-ag").textContent = c.agriculture_connection;
     $("card-objectives").replaceChildren(...c.learning_objectives.map((x) => el("li", "", x)));
-    window.SproutParts.render($("card-parts"), c.parts);
+    window.SproutParts.render($("card-parts"), c.parts, { onExplain: (item) => learn("explain", item) });
+    renderConcepts(c.id);
+    renderQuiz(c.id);
     for (const id of ["card-safety", "build-safety"]) {
       $(id).replaceChildren(...c.safety.map((x) => el("li", "", x)));
       $(id).hidden = c.safety.length === 0;
@@ -259,6 +273,57 @@
       li.addEventListener("click", () => li.classList.toggle("done")); // a checklist the student ticks
       return li;
     }));
+  }
+
+  function renderConcepts(cardId) {
+    const list = (window.SproutConcepts.CONCEPTS[cardId] || []);
+    $("card-concepts").replaceChildren(...list.map((k) => {
+      const box = el("div", "concept");
+      const more = el("details", "more");
+      more.append(el("summary", "", "How does it work?"), el("p", "", k.more));
+      more.addEventListener("toggle", () => { if (more.open) learn("explain", `${cardId}.${k.id}`); });
+      box.append(el("h3", "", k.title), el("p", "", k.text), more);
+      return box;
+    }));
+  }
+
+  function renderQuiz(cardId) {
+    const qs = window.SproutConcepts.QUIZ[cardId] || [];
+    $("quiz-label").hidden = qs.length === 0;
+    $("card-quiz").replaceChildren(...qs.map((q) => {
+      const box = el("div", "quiz-q");
+      const fb = el("div", "feedback");
+      const row = el("div", "actions");
+      let answered = false;
+      q.options.forEach((opt, i) => {
+        const b = el("button", "small", opt);
+        b.addEventListener("click", () => {
+          const right = i === q.answer;
+          b.classList.add(right ? "right" : "wrong");
+          fb.textContent = right ? `✓ Right. ${q.why}` : "Not quite. Try another answer.";
+          fb.className = `feedback ${right ? "ok-text" : "muted"}`;
+          if (!answered) learn("quiz", q.id, right);   // the first try is what counts
+          answered = true;
+        });
+        row.append(b);
+      });
+      box.append(el("p", "", q.q), row, fb);
+      return box;
+    }));
+  }
+
+  function renderGlossary() {
+    $("glossary-list").replaceChildren(...window.SproutConcepts.GLOSSARY.flatMap(([, term, text]) => [el("dt", "", term), el("dd", "", text)]));
+  }
+
+  /** The card list remembers that this student's board passed the check. */
+  function renderWarmupPanel() {
+    const ok = store.get(`sprout.boardok.${state.learner}`);
+    $("warmup-panel").classList.toggle("ok", !!ok);
+    $("warmup-title").textContent = ok ? "✓ Your board works" : "First time with your board?";
+    $("warmup-text").textContent = ok ? `Checked ${ok === today() ? "today" : `on ${ok}`}. You can start a card.`
+      : "Check that your UNO works before you start a card. No parts needed.";
+    $("btn-warmup").textContent = ok ? "Check my board again" : "Check that my board works";
   }
 
   function goStep(i) {
@@ -449,6 +514,11 @@
     state[partKey] = parts.pop().slice(-300);
     const lines = state[linesKey];
     for (const line of parts) if (line.trim()) lines.push(line.slice(0, 300));
+    if (source === "board" && state.warmup && parts.some((l) => /board is working/i.test(l)) && $("board-ok").hidden) {
+      $("board-ok").hidden = false;
+      store.set(`sprout.boardok.${state.learner}`, today());
+      $("btn-next").textContent = "Done → back to cards";
+    }
     if (lines.length > 300) lines.splice(0, lines.length - 300);
   }
 
@@ -699,7 +769,10 @@
     if (!("serial" in navigator)) $("unsupported").hidden = false;
     $("test-tag").hidden = !state.config.test_mode;
     $("signin-demo").hidden = !state.config.test_mode;
-    if (state.config.test_mode) $("sim-example").hidden = false;
+    if (state.config.test_mode) {
+      $("sim-example").hidden = false;
+      window.SproutLab.testBoardLine = (t) => collectSerial(t, "board");   // test mode only: pretend the board sent a line
+    }
     $("llm-mode").textContent = state.config.llm_provider === "anthropic" ? "AI: Claude" : "AI: offline mock";
     $("baud").value = String(state.config.default_baud || 9600);
 
@@ -728,8 +801,15 @@
     $("btn-check").addEventListener("click", checkWork);
     $("btn-hint").addEventListener("click", askHint);
     $("help-fab").addEventListener("click", openHelp);
+    $("btn-basics").addEventListener("click", () => { $("glossary").hidden = false; learn("explain", "glossary.open"); });
+    $("glossary-close").addEventListener("click", () => { $("glossary").hidden = true; });
+    renderGlossary();
     $("help-close").addEventListener("click", closeHelp);
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("help").hidden) closeHelp(); });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!$("help").hidden) closeHelp();
+      $("glossary").hidden = true;
+    });
     $("code").addEventListener("keydown", (e) => {
       if (e.key === "Tab") {
         e.preventDefault();

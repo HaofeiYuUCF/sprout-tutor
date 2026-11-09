@@ -309,3 +309,27 @@ details.advanced[open] { display: flex; flex-direction: column; gap: 8px; }
 .part-pic svg, .part-pic img { width: 100%; height: 100%; object-fit: contain; }
 .part-card figcaption { display: flex; flex-direction: column; gap: 3px; font-size: 13px; min-width: 0; }
 .part-card figcaption span { color: var(--muted); }
+/* breadboard: holes connected to the one under the pointer */
+.hole.conn { fill: #2f9e44; stroke: rgba(47, 158, 68, 0.35); }
+.pin.conn { fill: #8fd694; }
+/* new ideas, self-check, glossary, board check */
+.concepts { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.concept { border-left: 4px solid var(--accent); background: var(--accent-soft); border-radius: 0 10px 10px 0;
+  padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
+.concept h3 { margin: 0; font-size: 16px; }
+.concept p { margin: 0; font-size: 14.5px; }
+details.more summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details.more p { margin: 6px 0 0; font-size: 13.5px; color: var(--fg); }
+.part-card .what { color: var(--fg); }
+.quiz { display: flex; flex-direction: column; gap: 12px; }
+.quiz-q { border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.quiz-q p { margin: 0; font-weight: 600; }
+.quiz-q .actions button.right { border-color: var(--ok); color: var(--ok); }
+.quiz-q .actions button.wrong { border-color: var(--err); color: var(--err); }
+.quiz-q .feedback { font-size: 13.5px; }
+.glossary { margin: 0; display: grid; gap: 10px; }
+.glossary dt { font-weight: 700; }
+.glossary dd { margin: 0 0 4px; color: var(--muted); font-size: 14px; }
+.board-ok { padding: 12px 14px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 15px; }
+.warmup.ok { border-color: var(--ok); }
+.ok-text { color: var(--ok); }

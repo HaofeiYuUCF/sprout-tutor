@@ -1,4 +1,4 @@
-// Card 04: Greenhouse controller (starter) - final test
+// Card 05: Greenhouse controller (starter) - final test
 // A0: thermistor divider. Pin 9: fan (through the transistor). Pin 8: active buzzer.
 
 const int TEMP_PIN = A0;

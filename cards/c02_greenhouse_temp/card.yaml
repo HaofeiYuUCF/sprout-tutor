@@ -1,7 +1,7 @@
 schema_version: 2
 id: c02_greenhouse_temp
 title: Read greenhouse temperature
-version: 3
+version: 4
 stage: seed
 learning_objectives:
   - Read an analog sensor with analogRead.

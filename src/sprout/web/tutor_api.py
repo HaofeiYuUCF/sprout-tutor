@@ -165,6 +165,19 @@ class WebTutor:
                         "sim_passed": bool(c and c.sim_passed)}
         return {"cards": out}
 
+    def record_learning(self, learner_id: object, card_id: object, kind: object, item: object,
+                        correct: object = None) -> None:
+        """A self-check answer or an opened explanation (shows which help students actually use)."""
+        lr = self._learner(learner_id)
+        ok_item = isinstance(item, str) and re.match(r"^[a-z0-9_.-]{1,60}$", item)
+        if kind not in ("quiz", "explain") or not ok_item:
+            raise BadRequest("kind must be quiz or explain, with a short item id")
+        cid = self._card(card_id).id if card_id else None
+        detail = {"item": item, "client": "weblab"}
+        if kind == "quiz":
+            detail["correct"] = correct is True
+        lr.tutor.logger.log("quiz_answer" if kind == "quiz" else "explain_open", card_id=cid, detail=detail)
+
     def record_sim_run(self, learner_id: object, card_id: object, code: object) -> None:
         lr, card = self._learner(learner_id), self._card(card_id)
         ctx = self._context(lr, card, code)

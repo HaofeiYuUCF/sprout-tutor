@@ -1,4 +1,4 @@
-// Card 03: Greenhouse heat alarm (reference solution; never shown to students)
+// Card 04: Greenhouse heat alarm (reference solution; never shown to students)
 
 const int TEMP_PIN = A0;
 const int BUZZER_PIN = 8;

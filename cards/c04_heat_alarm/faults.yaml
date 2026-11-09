@@ -1,5 +1,5 @@
 schema_version: 1
-card_id: c03_heat_alarm
+card_id: c04_heat_alarm
 # Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
 faults:
   - id: threshold_inverted

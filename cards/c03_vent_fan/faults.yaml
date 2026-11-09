@@ -1,19 +1,7 @@
 schema_version: 1
-card_id: c01_vent_fan
+card_id: c03_vent_fan
 # Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
 faults:
-  - id: missing_semicolon
-    class: compile
-    title: Missing semicolon
-    evidence:
-      compile_regex: "expected ';' before"
-    seed: missing_semicolon
-    hints:
-      - The problem is in your code, not your wiring. The computer stopped before sending it to the board.
-      - Read the first error message. It names a line number. Look at the line just above it, too.
-      - A statement on or just before that line is missing the character that ends every C++ statement.
-      - Add a semicolon ( ; ) at the end of the statement the message points to, then check your code again.
-
   - id: pin_mode_missing
     class: logic
     title: Output pin not configured
@@ -65,16 +53,3 @@ faults:
       - When a motor switches off it makes a short voltage spike. The diode across the motor gives that spike a safe path.
       - The diode is missing or the wrong way round. A reversed diode shorts 5V to GND whenever the fan turns on.
       - With USB unplugged, put the diode across the two motor leads with its silver stripe on the 5V side.
-
-  - id: led_no_resistor
-    class: wiring
-    title: Test LED wired without its resistor
-    safety_critical: true
-    evidence:
-      photo_finding: missing_resistor
-      student_keywords: ["very bright", "no resistor", "burned", "burnt"]
-    hints:
-      - Unplug the USB cable first. An LED without a resistor draws too much current and can damage the LED or the board.
-      - Every LED needs a resistor in series. Look for it on the path from pin 9 to GND.
-      - The resistor is missing from the LED's path.
-      - With USB unplugged, put the 220 ohm resistor between pin 9 and the LED's long leg, then plug back in.

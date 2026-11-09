@@ -61,6 +61,36 @@
       tip: "Connects the UNO to the computer. Plug it in only after the circuit is built." },
   ];
 
+  // What each part does (shown) and how it works (folded, optional).
+  const WHAT = {
+    uno: ["The small computer that runs your program and switches the pins.",
+      "It has 14 digital pins (on or off), 6 analog pins (they measure voltage), and power pins: 5V, 3.3V and GND."],
+    breadboard: ["Lets you connect parts without soldering.",
+      "Under each short column of 5 holes is a metal clip that joins them. The two long rails along each edge are joined along their whole length; use the red + rail for 5V and the blue − rail for GND. The gap in the middle separates the two halves."],
+    led: ["A light that only lets current flow one way.",
+      "LED means light-emitting diode. It needs about 2 V and 10–20 mA. Too much current burns it out, so it always needs a resistor."],
+    res220: ["Limits the current so the LED does not burn out.",
+      "How to read 5 bands: the first three are digits, the fourth is how many zeros to add, and the last (set apart) is the precision. Red 2, red 2, black 0, then black (no zeros): 220 Ω."],
+    res1k: ["Keeps the current into the transistor small and safe.",
+      "Brown 1, black 0, black 0, then brown (add one zero): 1000 Ω, written 1k."],
+    res10k: ["Teams up with the thermistor to turn temperature into a voltage.",
+      "Brown 1, black 0, black 0, then red (add two zeros): 10 000 Ω, written 10k."],
+    thermistor: ["Its resistance changes with temperature, so the UNO can measure heat.",
+      "NTC means its resistance drops as it warms: about 10 kΩ at 25 °C and about 5 kΩ at 40 °C. On its own it cannot make a voltage, so it is paired with the 10k resistor in a voltage divider."],
+    transistor: ["An electronic switch: a small current into the middle leg lets a big current flow.",
+      "PN2222 is the model number of a common small NPN transistor (up to about 600 mA). The legs are the emitter (to GND), the base (the control input, through the 1k resistor) and the collector (to the motor)."],
+    diode: ["A one-way valve for current. Across the motor, it soaks up the spike the motor makes when it stops.",
+      "Current can only flow from the plain end to the striped end. 1N4007 is its model number; it handles up to 1 A."],
+    motor: ["Turns electricity into spinning: your greenhouse fan.",
+      "It needs much more current than a pin can give (about 100–250 mA), which is why the transistor switches it. Swapping its two wires reverses the direction."],
+    buzzer: ["Beeps when it gets 5 V on its + leg.",
+      "An active buzzer has its own tiny oscillator inside, so a plain HIGH is enough. A passive buzzer needs a changing signal from tone()."],
+    jumper: ["Wires that carry current between the UNO and the breadboard.",
+      "Colour does not matter to the electricity, only to people: red for 5V and black for GND make circuits easier to check."],
+    usb: ["Powers the UNO and carries your code and the board's messages.",
+      "It gives the board 5 V from the computer (up to about 500 mA in total)."],
+  };
+
   function el(tag, cls, text) {
     const e = document.createElement(tag);
     if (cls) e.className = cls;
@@ -69,7 +99,7 @@
   }
 
   /** Render picture cards for a card's parts list (strings like "1 × Thermistor (10k NTC)"). */
-  function render(container, partNames) {
+  function render(container, partNames, opts = {}) {
     container.replaceChildren(...partNames.map((full) => {
       const m = full.match(/^(\d+)\s*×\s*(.*)$/);
       const qty = m ? m[1] : "1";
@@ -86,7 +116,15 @@
       }
       const cap = el("figcaption");
       cap.append(el("b", "", `${qty} × ${label}`));
-      if (info) cap.append(el("span", "", info.tip));
+      const what = info && WHAT[info.key];
+      if (what) cap.append(el("span", "what", what[0]));
+      if (info) cap.append(el("span", "", `How to find it: ${info.tip}`));
+      if (what) {
+        const more = el("details", "more");
+        more.append(el("summary", "", "How does it work?"), el("p", "", what[1]));
+        more.addEventListener("toggle", () => { if (more.open && opts.onExplain) opts.onExplain(`part.${info.key}`); });
+        cap.append(more);
+      }
       card.append(pic, cap);
       return card;
     }));

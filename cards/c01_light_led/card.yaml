@@ -1,0 +1,54 @@
+schema_version: 2
+id: c01_light_led
+title: Light an LED
+version: 1
+stage: seed
+learning_objectives:
+  - Explain that current only flows around a closed loop, from 5V through the parts back to GND.
+  - Use a breadboard, an LED and a resistor correctly (LED direction, why the resistor is there).
+  - Switch a pin HIGH and LOW from code, and read the board's messages.
+agriculture_connection: >-
+  Every greenhouse controller has status lights that tell the grower at a glance what is running:
+  the fan, the irrigation valve, the heater. This card builds one status light. First it lights
+  with no code at all, then your program switches it on and off.
+parts:
+  - {name: Arduino UNO R3 (or compatible), qty: 1}
+  - {name: Breadboard, qty: 1}
+  - {name: Red LED, qty: 1}
+  - {name: 220 ohm resistor, qty: 1}
+  - {name: Jumper wire, qty: 3}
+  - {name: USB cable, qty: 1}
+safety:
+  - Unplug the USB cable before you add, move or remove any part or wire.
+  - Low-voltage DC only (5 V from USB). Never connect anything to mains power.
+  - Always put a resistor in series with an LED.
+tinkercad:
+  note: Optional extra. Tinkercad Circuits can also build this circuit (LED and 220 ohm resistor).
+steps:
+  - id: simulate
+    kind: simulate
+    text: >-
+      Part A, no code: wire 5V to the 220 Ω resistor, the resistor to the LED's long leg, and the
+      LED's short leg to GND. The LED lights. Now try three things and read the wiring tips each
+      time: turn the LED around, take the resistor out, pull one wire. Part B: move the wire from
+      5V to pin 9 and press "Test my wiring". The LED should blink.
+  - id: build
+    kind: build
+    text: >-
+      Build the Part B circuit on your breadboard: pin 9 to the 220 Ω resistor, the resistor to the
+      LED's long leg, the LED's short leg to GND (black wire).
+  - id: code
+    kind: code
+    text: >-
+      In setup(), make pin 9 an output. In loop(), turn the LED on, print "LED ON", wait one
+      second, turn it off, print "LED OFF", and wait one second.
+  - id: run
+    kind: run
+    text: >-
+      Send your code to the board. The LED should blink once a second, and the messages from the
+      board should switch between LED ON and LED OFF.
+  - id: reflect
+    kind: reflect
+    text: >-
+      Suppose your LED stays dark. How could you tell whether the problem is in the wiring or in
+      the code? Which clues on the screen would you look at first?

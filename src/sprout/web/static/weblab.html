@@ -11,6 +11,7 @@
   <div class="brand">SPROUT <span>Web Lab</span></div>
   <div id="test-tag" class="tag" hidden>Test build &middot; this computer only</div>
   <span class="spacer"></span>
+  <button id="btn-basics" class="small" hidden aria-controls="glossary">Basics</button>
   <div id="who" class="who" hidden>Student <b id="who-id"></b> <button id="btn-switch" class="link">Not you?</button></div>
 </header>
 
@@ -39,10 +40,10 @@
       <p class="muted">Each card is one small project. You wire it in the simulator, write the code, then build it on your own board.</p>
     </div>
     <div id="card-tiles" class="tiles"></div>
-    <div class="panel warmup">
+    <div id="warmup-panel" class="panel warmup">
       <div>
-        <h2>First time with your board?</h2>
-        <p class="muted">Check that your UNO works before you start a card. No parts needed.</p>
+        <h2 id="warmup-title">First time with your board?</h2>
+        <p id="warmup-text" class="muted">Check that your UNO works before you start a card. No parts needed.</p>
       </div>
       <span class="spacer"></span>
       <button id="btn-warmup">Check that my board works</button>
@@ -83,8 +84,12 @@
         <div class="facts">
           <div><span class="label">You will learn to</span><ul id="card-objectives"></ul></div>
         </div>
+        <span class="label">New ideas in this card</span>
+        <div id="card-concepts" class="concepts"></div>
         <span class="label">Find these parts in your kit</span>
         <div id="card-parts" class="part-gallery"></div>
+        <span id="quiz-label" class="label">Check yourself (not graded)</span>
+        <div id="card-quiz" class="quiz"></div>
         <ul id="card-safety" class="safety"></ul>
       </section>
 
@@ -169,6 +174,7 @@
       <!-- real board -->
       <section class="panel r-board">
         <span class="label">Your board</span>
+        <div id="board-ok" class="board-ok" role="status" hidden>✓ Your board works! The light marked "L" blinks and the board is sending messages.</div>
         <section id="unsupported" class="notice warn" hidden>
           This browser cannot talk to USB boards. Use <strong>Google Chrome</strong> or
           <strong>Microsoft Edge</strong> on a laptop or Chromebook.
@@ -176,7 +182,7 @@
         <ol class="wizard">
           <li><div class="body"><b>Plug your UNO into the computer</b><span class="muted">Only once the circuit is built. Use the USB cable from your kit; a green light on the board turns on. <b>Unplug it again before you change any wire or part.</b></span></div></li>
           <li><div class="body"><b>Connect</b>
-            <span class="muted">A list opens. Choose the line that says <b>Arduino Uno</b>, then click <b>Connect</b>.</span>
+            <span class="muted">A list opens, usually with one line such as <b>USB Serial Device (COM3)</b>. Choose it and click <b>Connect</b>. Several lines? Unplug the UNO, see which line disappears, and plug it back in.</span>
             <div class="actions"><button id="btn-connect">Connect my board</button><button id="btn-disconnect" class="small" disabled>Disconnect</button></div>
             <span id="board-status" class="pill off">not connected</span></div></li>
           <li><div class="body"><b>Send your code</b>
@@ -222,6 +228,16 @@
 </main>
 
 <button id="help-fab" class="help-fab primary" hidden aria-controls="help">Need help?</button>
+<aside id="glossary" class="drawer" aria-label="Basics" hidden>
+  <div class="panel-head">
+    <h2>Basics</h2>
+    <span class="spacer"></span>
+    <button id="glossary-close" class="small" aria-label="Close the basics">Close</button>
+  </div>
+  <p class="muted">Short reminders of the words used in the cards.</p>
+  <dl id="glossary-list" class="glossary"></dl>
+</aside>
+
 <aside id="help" class="drawer" aria-label="Tutor" hidden>
   <div class="panel-head">
     <h2>Tutor</h2>
@@ -237,6 +253,7 @@
 
 <script src="/weblab/static/stk500.js"></script>
 <script src="/weblab/static/parts.js"></script>
+<script src="/weblab/static/concepts.js"></script>
 <script src="/weblab/static/weblab.js"></script>
 <script type="module" src="/weblab/static/sim.js"></script>
 </body>

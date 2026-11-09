@@ -1,7 +1,7 @@
 schema_version: 2
-id: c04_greenhouse_controller
+id: c05_greenhouse_controller
 title: Greenhouse controller (final test)
-version: 1
+version: 2
 stage: seed
 learning_objectives:
   - Combine one sensor and two outputs into a single control program.
@@ -10,7 +10,7 @@ learning_objectives:
 agriculture_connection: >-
   A real greenhouse controller does exactly this: it watches the temperature, runs the vent fan
   when it gets warm, and raises an alarm when the fan is not enough. This final test puts your
-  three cards together into one system.
+  earlier cards together into one system.
 parts:
   - {name: Arduino UNO R3 (or compatible), qty: 1}
   - {name: Breadboard, qty: 1}
@@ -42,7 +42,7 @@ steps:
     text: >-
       Build all three circuits on one breadboard, each in its own columns. Share one 5 V rail and
       one GND rail. The thermistor divider goes to A0, the fan circuit (1k resistor, transistor,
-      diode, motor) to pin 9, and the buzzer to pin 8.
+      diode, motor) to pin 9, and the buzzer to pin 8 (as in cards 2, 3 and 4).
   - id: code
     kind: code
     text: >-

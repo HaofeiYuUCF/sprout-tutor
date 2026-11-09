@@ -573,6 +573,7 @@ function init() {
       else if (!s.shorts.length) {
         if (l.reversed) add("warn", "The LED is backwards. The long leg (+) must face the pin side. Double-click it to turn it around.");
         else if (l.lit && l.noResistor) add("warn", `The LED is wired from ${l.signal} without a resistor. On a real board this could burn out the LED.`);
+        else if (l.lit && /^(5V|3V3)$/.test(l.signal)) add("ok", `The LED is on, straight from ${l.signal === "3V3" ? "3.3V" : "5V"}: current flows around the whole loop (${l.signal === "3V3" ? "3.3V" : "5V"} → resistor → LED → GND), so no code is needed. Next, move that wire to pin 9 so your code can switch it.`);
         else if (l.lit) add("ok", `LED circuit complete: ${l.signal} → resistor → LED → GND. It lights when ${l.signal} is HIGH.`);
         else if (!l.signal) add("todo", "Connect the LED's long leg (+) side to a digital pin, through the 220 Ω resistor.");
         else if (!l.toGround) add("todo", "Connect the other side of the LED to GND.");
@@ -711,6 +712,12 @@ function init() {
 
   function testWiring() {
     const t = wiringTest();
+    const now = evaluate(pinLevel);
+    if (!t && now.led && now.led.lit) {
+      setStatus("Your LED is already on, straight from 5V, so there is nothing for a program to switch. Move the wire from 5V to pin 9, then test again.");
+      refresh(true);
+      return;
+    }
     if (!t) {
       setStatus("Wire a part first. The test needs at least one output connected to a pin and GND, or the thermistor divider connected to an analog pin.");
       refresh(true);
@@ -842,13 +849,43 @@ function init() {
     }
   });
 
-  // hover tooltip: the pin, hole or part under the pointer
+  // Hover a pin or hole: every hole and pin connected to it lights up (the breadboard strip,
+  // the power rail, and anything joined by wires), with a short explanation underneath.
+  const termEls = [...svg.querySelectorAll("[data-term]")];
+  let lit = [];
+  function clearConnected() {
+    for (const e of lit) e.classList.remove("conn");
+    lit = [];
+  }
+  function showConnected(id) {
+    clearConnected();
+    const find = nets();
+    const root = find(terms.get(id).net);
+    lit = termEls.filter((e) => find(terms.get(e.dataset.term).net) === root);
+    for (const e of lit) e.classList.add("conn");
+    return lit.length;
+  }
+  function describe(id, count) {
+    const t = terms.get(id);
+    const others = count - 1;
+    const linked = others > 0 ? `connected to ${others} other hole${others === 1 ? "" : "s"} and pin${others === 1 ? "" : "s"} (highlighted)` : "not connected to anything else";
+    if (id.startsWith("rail:")) return `${t.label}: the whole rail is one strip, ${linked}.`;
+    if (id.startsWith("bb:")) return `${t.label}: the 5 holes in this short column are joined inside the board; ${linked}.`;
+    return `${t.label}: ${linked}.`;
+  }
   svg.addEventListener("mouseover", (ev) => {
     const termEl = ev.target.closest("[data-term]");
     const partEl = ev.target.closest("[data-part]");
-    $("sim-hover").textContent = termEl ? terms.get(termEl.dataset.term).label
-      : partEl ? `${NAMES[partEl.dataset.part]}${FLIPPABLE.has(partEl.dataset.part) ? " (double-click to turn around)" : ""}` : "";
+    if (termEl) {
+      const n = showConnected(termEl.dataset.term);
+      $("sim-hover").textContent = describe(termEl.dataset.term, n);
+      return;
+    }
+    clearConnected();
+    $("sim-hover").textContent = partEl
+      ? `${NAMES[partEl.dataset.part]}${FLIPPABLE.has(partEl.dataset.part) ? " (double-click to turn around)" : ""}` : "";
   });
+  svg.addEventListener("mouseleave", () => { clearConnected(); $("sim-hover").textContent = ""; });
 
   $("sim-run").addEventListener("click", () => start());
   $("sim-test").addEventListener("click", testWiring);
@@ -928,6 +965,7 @@ function init() {
       lit: !!(parts.led && parts.led.on), spinning: !!(parts.motor && parts.motor.on), beeping: !!(parts.buzzer && parts.buzzer.on) }),
     evaluate: () => evaluate(pinLevel),
     serialize: () => serialize(),
+    connected: (id) => { const n = showConnected(id); const ids = lit.map((e) => e.dataset.term); clearConnected(); return { n, ids }; },
     snapshot: () => snapshot(),
     testWiring: () => testWiring(),
     place: (kind, holeId, flipped) => {

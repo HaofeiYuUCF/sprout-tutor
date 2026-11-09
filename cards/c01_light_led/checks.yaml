@@ -1,0 +1,8 @@
+schema_version: 1
+checks:
+  - id: compiles
+    type: compile_ok
+  - id: led_messages
+    type: serial_regex
+    regex: "LED (ON|OFF)"
+    min_matches: 2

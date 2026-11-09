@@ -4,9 +4,9 @@ from sprout.content import load_skills
 from sprout.tutor.context import strip_comments
 
 
-def test_four_seed_cards_load(cards):
-    assert set(cards) == {"c01_vent_fan", "c02_greenhouse_temp", "c03_heat_alarm",
-                          "c04_greenhouse_controller"}
+def test_five_seed_cards_load(cards):
+    assert set(cards) == {"c01_light_led", "c02_greenhouse_temp", "c03_vent_fan", "c04_heat_alarm",
+                          "c05_greenhouse_controller"}
     for c in cards.values():
         assert c.card.stage == "seed"
         assert {s.kind for s in c.card.steps} >= {"simulate", "build", "code", "run", "reflect"}

@@ -25,21 +25,21 @@ def test_raw_zero_with_correct_code_is_wiring_not_calculation(cards):
 
 
 def test_untouched_starter_does_not_trigger_missing_code_faults(cards):
-    for cid in ("c01_vent_fan", "c02_greenhouse_temp"):
+    for cid in ("c01_light_led", "c02_greenhouse_temp"):
         c = cards[cid]
         ctx = Context(c, c.starter.read_text(), None, [], "how do I start?")
         assert match_faults(ctx) == [], cid
 
 
 def test_stated_symptom_beats_missing_code_inference(cards):
-    c = cards["c01_vent_fan"]
+    c = cards["c03_vent_fan"]
     edited = c.starter.read_text().replace("// TODO: wait three seconds", "delay(10);", 1)
     ctx = Context(c, edited, OK, [], "the fan does not spin")
     assert match_faults(ctx)[0].fault.id == "fan_not_running"
 
 
 def test_alarm_never_on_requires_alarm_off_in_log(cards):
-    c = cards["c03_heat_alarm"]
+    c = cards["c04_heat_alarm"]
     ctx = Context(c, c.reference.read_text(), OK, ["temp_c=31.2 alarm=ON"] * 5, "the buzzer is silent")
     ids = [m.fault.id for m in match_faults(ctx)]
     assert "alarm_never_on" not in ids and ids[0] == "buzzer_silent"

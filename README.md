@@ -65,10 +65,14 @@ to the UNO over Web Serial (Chrome or Edge only). Nothing is open to other machi
 4. Each upload is logged in `data/weblab/upload_trials.jsonl` (success, error type, time, USB chip
    ID; no names or code), for the reliability numbers.
 
-Seed cards (all parts from the ELEGOO UNO R3 starter kit): **c01 vent fan** (an LED on pin 9
-first, then a PN2222 transistor, 1N4007 diode and DC fan motor), **c02 greenhouse temperature**
-(10k NTC thermistor + 10k divider on A0), **c03 heat alarm** (thermistor + active buzzer on pin 8),
-**c04 greenhouse controller** (final test: fan above 27 °C, alarm above 30 °C). The simulator draws
+Seed cards (all parts from the ELEGOO UNO R3 starter kit), after a no-parts board check:
+**c01 light an LED** (Part A: 5V -> resistor -> LED -> GND with no code; Part B: blink on pin 9),
+**c02 greenhouse temperature** (10k NTC thermistor + 10k divider on A0), **c03 vent fan** (the card 1
+blink code drives a PN2222 transistor, 1N4007 diode and DC fan motor), **c04 heat alarm** (thermistor +
+active buzzer on pin 8), **c05 greenhouse controller** (final test: fan above 27 °C, alarm above
+30 °C). Each card's first step shows at most two new ideas (short text, optional "How does it work?"),
+a picture card for every part, and an ungraded self-check; a "Basics" glossary is always available.
+Self-check answers and opened explanations are logged (`quiz_answer`, `explain_open`). The simulator draws
 each card's parts and judges the LED loop, the transistor fan switch (base resistor, emitter to GND,
 diode across the motor), the buzzer's polarity and the thermistor divider (slider = air temperature).
 

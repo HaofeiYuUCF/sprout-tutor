@@ -1,4 +1,4 @@
-// Card 04: Greenhouse controller (reference solution; never shown to students)
+// Card 05: Greenhouse controller (reference solution; never shown to students)
 
 const int TEMP_PIN = A0;
 const int FAN_PIN = 9;
