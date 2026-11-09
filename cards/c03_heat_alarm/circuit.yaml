@@ -1,12 +1,11 @@
 schema_version: 1
 components:
   - {ref: UNO, type: arduino_uno_r3}
-  - {ref: U1, type: tmp36}
-  - {ref: R1, type: resistor, value: 220 ohm}
-  - {ref: LED1, type: led, value: red}
+  - {ref: TH1, type: thermistor, value: 10k NTC}
+  - {ref: R1, type: resistor, value: 10k ohm}
+  - {ref: BZ1, type: active_buzzer}
 nodes:
-  - {name: vcc, members: [UNO.5V, U1.vs]}
-  - {name: signal, members: [U1.vout, UNO.A0]}
-  - {name: pin8, members: [UNO.D8, R1.1]}
-  - {name: led_anode, members: [R1.2, LED1.anode]}
-  - {name: gnd, members: [U1.gnd, LED1.cathode, UNO.GND]}
+  - {name: vcc, members: [UNO.5V, TH1.1]}
+  - {name: signal, members: [TH1.2, R1.1, UNO.A0]}
+  - {name: buzzer, members: [UNO.D8, BZ1.plus]}
+  - {name: gnd, members: [R1.2, BZ1.minus, UNO.GND]}

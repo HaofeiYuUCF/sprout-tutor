@@ -2,7 +2,7 @@ schema_version: 1
 checks:
   - id: compiles
     type: compile_ok
-  - id: pump_messages
+  - id: fan_messages
     type: serial_regex
-    regex: "PUMP (ON|OFF)"
+    regex: "FAN (ON|OFF)"
     min_matches: 2

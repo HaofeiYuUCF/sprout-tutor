@@ -1,0 +1,61 @@
+schema_version: 2
+id: c01_vent_fan
+title: Greenhouse ventilation fan
+version: 1
+stage: seed
+learning_objectives:
+  - Configure a digital pin as an output with pinMode and switch it with digitalWrite.
+  - Test a control signal with an LED first, then let a transistor switch a motor.
+  - Explain why a motor needs a transistor and a protection diode instead of a pin.
+agriculture_connection: >-
+  Greenhouses overheat quickly on sunny days, so growers run vent fans to push the hot air out.
+  In this card you switch a small fan on and off from the UNO. You test the signal with an LED
+  first, then a transistor switches the motor, the same idea real controllers use to switch big
+  fans through relays.
+parts:
+  - {name: Arduino UNO R3 (or compatible), qty: 1}
+  - {name: Breadboard, qty: 1}
+  - {name: Red LED, qty: 1}
+  - {name: 220 ohm resistor, qty: 1}
+  - {name: 1k ohm resistor, qty: 1}
+  - {name: NPN transistor (PN2222), qty: 1}
+  - {name: Diode (1N4007), qty: 1}
+  - {name: DC motor with fan blade, qty: 1}
+  - {name: Jumper wire, qty: 6}
+  - {name: USB cable, qty: 1}
+safety:
+  - Low-voltage DC only (5 V from USB). Never connect anything to mains power.
+  - Never connect the motor straight to a pin. Always switch it through the transistor.
+  - Keep fingers and hair away from the spinning fan blade.
+tinkercad:
+  note: Optional extra. In Tinkercad Circuits you can build the LED stage (LED and 220 ohm resistor on pin 9).
+steps:
+  - id: simulate
+    kind: simulate
+    text: >-
+      First wire the LED and the 220 ohm resistor to pin 9 and press "Test my wiring": the LED
+      should blink. Then take the LED out and wire the fan: pin 9 to the 1k resistor to the
+      transistor's middle leg; transistor left leg to GND; right leg to the motor; other motor lead
+      to 5V; the diode across the motor with its stripe on the 5V side. Test again.
+  - id: build
+    kind: build
+    text: >-
+      Build the fan circuit on your breadboard. PN2222 flat face toward you: left leg (emitter) to
+      GND, middle leg (base) through the 1k resistor to pin 9, right leg (collector) to one motor
+      lead. The other motor lead goes to 5 V. Put the diode across the two motor leads, stripe
+      toward 5 V.
+  - id: code
+    kind: code
+    text: >-
+      Set pin 9 as an output in setup(). In loop(), turn the fan on, print "FAN ON", wait three
+      seconds, turn it off, print "FAN OFF", and wait three seconds.
+  - id: run
+    kind: run
+    text: >-
+      Send your code to the board. The fan should run for three seconds and stop for three
+      seconds, and the messages from the board should switch between FAN ON and FAN OFF.
+  - id: reflect
+    kind: reflect
+    text: >-
+      An UNO pin can only give a tiny current, yet the fan runs. What job does the transistor do?
+      Why do real greenhouse controllers switch big fans through relays instead of directly?

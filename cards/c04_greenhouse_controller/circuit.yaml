@@ -1,0 +1,18 @@
+schema_version: 1
+components:
+  - {ref: UNO, type: arduino_uno_r3}
+  - {ref: TH1, type: thermistor, value: 10k NTC}
+  - {ref: R1, type: resistor, value: 10k ohm}
+  - {ref: R2, type: resistor, value: 1k ohm}
+  - {ref: Q1, type: npn_transistor, value: PN2222}
+  - {ref: D1, type: diode, value: 1N4007}
+  - {ref: M1, type: dc_motor}
+  - {ref: BZ1, type: active_buzzer}
+nodes:
+  - {name: vcc, members: [UNO.5V, TH1.1, M1.1, D1.cathode]}
+  - {name: signal, members: [TH1.2, R1.1, UNO.A0]}
+  - {name: control, members: [UNO.D9, R2.1]}
+  - {name: base, members: [R2.2, Q1.base]}
+  - {name: collector, members: [Q1.collector, M1.2, D1.anode]}
+  - {name: buzzer, members: [UNO.D8, BZ1.plus]}
+  - {name: gnd, members: [R1.2, Q1.emitter, BZ1.minus, UNO.GND]}

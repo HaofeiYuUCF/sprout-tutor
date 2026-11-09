@@ -1,0 +1,60 @@
+schema_version: 2
+id: c04_greenhouse_controller
+title: Greenhouse controller (final test)
+version: 1
+stage: seed
+learning_objectives:
+  - Combine one sensor and two outputs into a single control program.
+  - Use two thresholds - one to start the fan and a higher one to sound the alarm.
+  - Test a whole system one part at a time and explain its behaviour from the messages.
+agriculture_connection: >-
+  A real greenhouse controller does exactly this: it watches the temperature, runs the vent fan
+  when it gets warm, and raises an alarm when the fan is not enough. This final test puts your
+  three cards together into one system.
+parts:
+  - {name: Arduino UNO R3 (or compatible), qty: 1}
+  - {name: Breadboard, qty: 1}
+  - {name: Thermistor (10k NTC), qty: 1}
+  - {name: 10k ohm resistor, qty: 1}
+  - {name: 1k ohm resistor, qty: 1}
+  - {name: NPN transistor (PN2222), qty: 1}
+  - {name: Diode (1N4007), qty: 1}
+  - {name: DC motor with fan blade, qty: 1}
+  - {name: Active buzzer, qty: 1}
+  - {name: Jumper wire, qty: 10}
+  - {name: USB cable, qty: 1}
+safety:
+  - Low-voltage DC only (5 V from USB).
+  - Switch the motor only through the transistor, with the diode across it.
+  - Keep fingers and hair away from the spinning fan blade.
+tinkercad:
+  note: Optional extra. Use the SPROUT simulator for this card; Tinkercad Circuits has no thermistor.
+steps:
+  - id: simulate
+    kind: simulate
+    text: >-
+      Wire all three parts in the simulator: the thermistor divider on A0, the fan circuit on pin 9
+      and the buzzer on pin 8. Press "Test my wiring": the fan and the buzzer switch on and off, and
+      the sensor reports a temperature.
+  - id: build
+    kind: build
+    text: >-
+      Build all three circuits on one breadboard, each in its own columns. Share one 5 V rail and
+      one GND rail. The thermistor divider goes to A0, the fan circuit (1k resistor, transistor,
+      diode, motor) to pin 9, and the buzzer to pin 8.
+  - id: code
+    kind: code
+    text: >-
+      The starter already reads the temperature. Turn the fan on above FAN_ON_C and the buzzer on
+      above ALARM_C (each off otherwise). Print a line like "temp_c=27.5 fan=ON alarm=OFF" for
+      each reading.
+  - id: run
+    kind: run
+    text: >-
+      Send your code to the board. At room temperature both should be off. Warm the thermistor
+      with your fingers: first the fan should start, then, if it gets warmer still, the alarm.
+  - id: reflect
+    kind: reflect
+    text: >-
+      When the temperature hovers right at FAN_ON_C, the fan switches on and off again and again.
+      How could you change the rule so the fan runs steadily? What would a grower want?

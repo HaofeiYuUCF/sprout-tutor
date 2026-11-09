@@ -19,50 +19,49 @@ faults:
     class: logic
     title: Alarm never turns on during testing
     evidence:
-      student_keywords: ["never turns on", "never on", "always off", "stays off"]
+      student_keywords: ["never turns on", "never on", "always off", "stays off", "never beeps"]
       context_serial_regex: "alarm=OFF"
       requires_context: true   # only when the log really shows alarm=OFF
     hints:
-      - The log shows alarm=OFF, so the code runs. The question is whether the input ever crosses the threshold.
-      - Watch temp_c while you pinch the sensor. How high does it get, compared with ALARM_C?
-      - A finger warms the sensor only to about 28–32 °C, so a 30 °C threshold may never be crossed.
-      - For testing, lower ALARM_C a few degrees above your room reading, confirm the LED switches, then set it back.
+      - The messages show alarm=OFF, so the code runs. The question is whether the reading ever crosses the threshold.
+      - Watch temp_c while you pinch the thermistor. How high does it get, compared with ALARM_C?
+      - A finger warms the thermistor only to about 28–32 °C, so the threshold may never be crossed.
+      - For testing, set ALARM_C one or two degrees above your room reading, confirm the buzzer switches, then set it back.
 
-  - id: led_no_resistor
+  - id: buzzer_silent
     class: wiring
-    title: LED wired without its resistor
-    safety_critical: true
+    title: Buzzer silent although the alarm is on
     evidence:
-      photo_finding: missing_resistor
-      student_keywords: ["very bright", "no resistor", "burned", "burnt"]
+      context_serial_regex: "alarm=ON"
+      student_keywords: ["no sound", "silent", "doesn't beep", "does not beep", "no beep", "can't hear"]
+      photo_finding: buzzer_reversed_or_wrong_pin
     hints:
-      - Unplug the USB cable first. An LED without a resistor draws too much current.
-      - Every LED needs a resistor in series. Look for it between pin 8 and GND.
-      - The resistor is missing from the LED's path.
-      - Unplug USB, put the 220 ohm resistor between pin 8 and the LED's long leg, then plug back in.
+      - If the messages say alarm=ON but you hear nothing, the code decided correctly. Check the buzzer circuit.
+      - Which pin does the buzzer's long leg go to, and which pin does BUZZER_PIN name? Where does the short leg go?
+      - The buzzer only sounds with its long leg (+) on the pin side and its short leg on GND, on the pin the code switches.
+      - Put the buzzer's long leg in the column wired to pin 8 and its short leg in a column wired to GND.
 
-  - id: sensor_signal_unconnected
+  - id: signal_unconnected
     class: wiring
-    title: Sensor signal not reaching A0
+    title: Divider not reaching A0
     evidence:
       serial_out_of_range: {field: temp_c, min: -10, max: 60}
-      serial_regex: "temp_c=-50\\.0"
-      photo_finding: tmp36_signal_open
+      serial_regex: "temp_c=-273\\.1"
+      photo_finding: divider_signal_open
     hints:
-      - If the temperature values are impossible for a room (for example stuck at -50.0), check the sensor circuit before the code.
-      - Follow the TMP36's middle leg. Is it in the same row as the wire to A0?
-      - The signal leg is not connected to A0, so the reading is noise or zero.
-      - Put the A0 wire in the same row as the TMP36's middle leg and press both in firmly.
+      - If the temperature values are impossible for a room (for example -273.1), check the sensor circuit before the code.
+      - Follow the wire from A0. Is it in the same column as the thermistor leg and the 10k resistor leg?
+      - The middle point of the divider is not reaching A0, or one of its parts is not connected.
+      - Rebuild the divider from card 2 (5V, thermistor, A0 column, 10k resistor, GND) and press the parts in firmly.
 
-  - id: led_wrong_pin
-    class: wiring
-    title: LED wired to a different pin than the code uses
+  - id: buzzer_pin_not_output
+    class: logic
+    title: Buzzer pin not configured
     evidence:
-      photo_finding: led_wrong_pin
-      student_keywords: ["stays off", "stays dark", "not light", "no light", "doesn't light", "does not light", "led is off"]
-      context_serial_regex: "alarm=ON"
+      code_missing_regex: "pinMode\\s*\\(\\s*BUZZER_PIN"
+      student_keywords: [quiet, faint, "very soft"]
     hints:
-      - If the log says alarm=ON but the LED stays dark, the code decided correctly; check the LED circuit.
-      - Which pin does your LED wire go to, and which pin does ALARM_LED_PIN name?
-      - The LED is on a different pin from the one the code switches.
-      - Move the LED's wire to pin 8 (or change ALARM_LED_PIN to match the wire).
+      - This looks like a code issue in how the buzzer pin is set up, not the wiring.
+      - Every pin you drive must be told what job it has before loop() starts. Check setup().
+      - setup() never configures the buzzer pin as an output, so it only gets a weak trickle of current.
+      - "In setup(), add a line that sets BUZZER_PIN to OUTPUT using pinMode."

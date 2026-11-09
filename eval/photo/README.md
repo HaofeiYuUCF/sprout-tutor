@@ -2,7 +2,7 @@
 
 Goal: measure how often the photo check raises **false flags on correct builds**, and whether
 it detects two photo-visible faults, comparing a direct vision-model judgement with the
-structured pipeline (inventory → netlist → comparison in code). Circuit: card `c03_heat_alarm`.
+structured pipeline (inventory → netlist → comparison in code). Circuits: cards `c01_vent_fan` (transistor fan switch) and `c03_heat_alarm` (thermistor divider + buzzer), built from the ELEGOO starter kit.
 
 ## Photo set (30–36 photos)
 | Condition | Count | Notes |

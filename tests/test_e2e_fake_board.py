@@ -20,7 +20,7 @@ def test_seeded_fault_to_passing_checks(tmp_path, cards, make_tutor):
     assert compiled.ok
     assert board.upload(sk).ok
     serial = [ln.text for ln in board.recent_serial()]
-    ctx = Context(card, code, compiled, serial, "it always says -50")
+    ctx = Context(card, code, compiled, serial, "it always says -273.1")
     tutor.note(ctx, "upload")
     assert not all(r.passed for r in tutor.checks(ctx))
 
@@ -52,13 +52,13 @@ def test_seeded_fault_to_passing_checks(tmp_path, cards, make_tutor):
 
 
 def test_unknown_problem_goes_to_llm_with_guardrail(tmp_path, cards, make_tutor):
-    card = cards["c01_pump_light"]
+    card = cards["c01_vent_fan"]
     ref = card.reference.read_text()
     leaky = MockLLM(reply=f"Sure!\n```cpp\n{ref}\n```")
     tutor = make_tutor(llm=leaky)
     # Student configured the pin but has not written the blink logic yet (no curated fault fits).
     code = card.starter.read_text().replace(
-        "// TODO: set PUMP_LED_PIN as an output", "pinMode(PUMP_LED_PIN, OUTPUT);", 1)
+        "// TODO: set FAN_PIN as an output", "pinMode(FAN_PIN, OUTPUT);", 1)
     ctx = Context(card, code, None, [], "how do I make it blink faster?")
     h = tutor.request_hint(ctx)
     assert h.fault_id is None

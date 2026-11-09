@@ -18,7 +18,7 @@ from .tutor.orchestrator import Tutor, load_prompt
 
 
 def demo_fake_board() -> FakeBoard:
-    """A fake UNO that behaves plausibly for cards c01–c03 (for demos without hardware)."""
+    """A fake UNO that behaves plausibly for cards c01–c04 (for demos without hardware)."""
 
     def compiler(code: str) -> list[str]:
         body = strip_comments(code)
@@ -32,15 +32,18 @@ def demo_fake_board() -> FakeBoard:
 
     def behaviour(code: str) -> list[str]:
         body = strip_comments(code)
-        if "temp_c" in body and "alarm" in body:
+        if "fan=" in body and "alarm=" in body:          # card 04: controller
+            fan_rev = re.search(r"tempC\s*<=?\s*FAN_ON_C", body)
+            return [f"temp_c=24.{i} fan={'ON' if fan_rev else 'OFF'} alarm=OFF" for i in range(8)]
+        if "temp_c" in body and "alarm" in body:          # card 03: alarm
             inverted = re.search(r"tempC\s*<=?\s*ALARM_C", body)
             return [f"temp_c=24.{i} alarm={'ON' if inverted else 'OFF'}" for i in range(8)]
-        if "temp_c" in body:
-            if re.search(r"\(\s*5\s*/\s*1023\s*\)", body):
-                return ["raw=153 temp_c=-50.0" for _ in range(8)]
-            return [f"raw={150 + i} temp_c={23.9 + i / 10:.1f}" for i in range(8)]
-        if "PUMP ON" in body:
-            return ["PUMP ON", "PUMP OFF"] * 4
+        if "temp_c" in body:                              # card 02: thermistor
+            if re.search(r"1023\s*/\s*raw", body):        # integer division: 1023 / 512 == 1
+                return ["raw=512 temp_c=-273.1" for _ in range(8)]
+            return [f"raw={505 + i} temp_c={24.6 + i / 10:.1f}" for i in range(8)]
+        if "FAN ON" in body:                              # card 01: fan
+            return ["FAN ON", "FAN OFF"] * 4
         return []
 
     return FakeBoard(compiler, behaviour)

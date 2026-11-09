@@ -31,7 +31,7 @@ def test_llm_failure_is_logged_as_generic(cards, make_tutor):
             raise RuntimeError("network down")
 
     tutor = make_tutor(llm=Broken())
-    c = cards["c01_pump_light"]
+    c = cards["c01_vent_fan"]
     resp = tutor.request_hint(Context(c, c.reference.read_text(), None, [], "make it faster?"))
     assert resp.source == "generic" and "llm_error" in resp.guardrail_reasons
     assert '"hint_source":"generic"' in tutor.logger.path.read_text()

@@ -1,6 +1,9 @@
-// Seeded fault: code reads A1 while the sensor is wired to A0
+// Seeded fault: code reads A1 but the divider is wired to A0
 
 const int TEMP_PIN = A1;
+const float R_FIXED = 10000.0;
+const float R0 = 10000.0;
+const float BETA = 3950.0;
 
 void setup() {
   Serial.begin(9600);
@@ -8,8 +11,8 @@ void setup() {
 
 void loop() {
   int raw = analogRead(TEMP_PIN);
-  float volts = raw * 5.0 / 1023.0;
-  float tempC = (volts - 0.5) * 100.0;
+  float r = R_FIXED * (1023.0 / raw - 1.0);
+  float tempC = 1.0 / (1.0 / 298.15 + log(r / R0) / BETA) - 273.15;
   Serial.print("raw=");
   Serial.print(raw);
   Serial.print(" temp_c=");

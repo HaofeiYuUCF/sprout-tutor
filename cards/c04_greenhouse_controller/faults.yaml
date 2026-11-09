@@ -1,0 +1,79 @@
+schema_version: 1
+card_id: c04_greenhouse_controller
+# Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
+faults:
+  - id: comparison_reversed
+    class: logic
+    title: A comparison is reversed
+    evidence:
+      code_regex: "tempC\\s*<=?\\s*(FAN_ON_C|ALARM_C)|(FAN_ON_C|ALARM_C)\\s*>=?\\s*tempC"
+      serial_regex: "temp_c=2[0-6]\\.\\d fan=ON"
+    seed: comparison_reversed
+    hints:
+      - Look at the decisions in your code. If the fan or the alarm is on at room temperature, a comparison is the usual cause.
+      - Read each if-condition out loud. Does it say "warmer than the threshold"?
+      - At least one comparison is reversed, so that output turns on when it is cooler than its threshold.
+      - Make each output turn on only when tempC is greater than its threshold.
+
+  - id: thresholds_mixed_up
+    class: logic
+    title: Fan and alarm use each other's threshold
+    evidence:
+      serial_regex: "fan=OFF alarm=ON"
+    hints:
+      - The alarm came on while the fan was still off. That points to the decisions in the code, not the wiring.
+      - The fan should start first (at the lower temperature) and the alarm later. Which threshold does each output use?
+      - The fan and the alarm seem to use each other's threshold, or FAN_ON_C is higher than ALARM_C.
+      - Use FAN_ON_C for the fan and ALARM_C for the buzzer, and keep FAN_ON_C below ALARM_C.
+
+  - id: fan_pin_not_output
+    class: logic
+    title: Fan pin not configured
+    evidence:
+      code_missing_regex: "pinMode\\s*\\(\\s*FAN_PIN"
+      student_keywords: ["fan barely", "barely spins", "spins slowly", weak]
+    seed: fan_pin_not_output
+    hints:
+      - This looks like a code issue in how the fan pin is set up, not the wiring.
+      - Every pin you drive must be told what job it has before loop() starts. Check setup() for both output pins.
+      - setup() never configures the fan pin as an output.
+      - "In setup(), add a line that sets FAN_PIN to OUTPUT using pinMode (and the same for BUZZER_PIN)."
+
+  - id: fan_not_running
+    class: wiring
+    title: Fan stays off although the code turns it on
+    evidence:
+      context_serial_regex: "fan=ON"
+      student_keywords: ["not spin", "doesn't spin", "does not spin", "won't spin", "fan stays off", "fan doesn't"]
+      photo_finding: fan_circuit_open
+    hints:
+      - If the messages say fan=ON but the fan does not turn, the code decided correctly. Check the fan circuit from card 1.
+      - "Trace it: pin 9 to the 1k resistor to the transistor's middle leg; 5V to the motor to the transistor's right leg; the left leg to GND."
+      - A link in the fan circuit is missing, or the transistor is turned around.
+      - Rebuild the fan circuit as in card 1 and check that it shares the GND rail with the UNO.
+
+  - id: buzzer_silent
+    class: wiring
+    title: Buzzer silent although the alarm is on
+    evidence:
+      context_serial_regex: "alarm=ON"
+      student_keywords: ["no sound", "silent", "doesn't beep", "does not beep", "no beep", "can't hear"]
+      photo_finding: buzzer_reversed_or_wrong_pin
+    hints:
+      - If the messages say alarm=ON but you hear nothing, the code decided correctly. Check the buzzer circuit.
+      - Which pin does the buzzer's long leg go to? Where does its short leg go?
+      - The buzzer needs its long leg (+) on pin 8 and its short leg on GND.
+      - Put the buzzer's long leg in the column wired to pin 8 and its short leg in a column wired to GND.
+
+  - id: board_resets
+    class: wiring
+    title: Board restarts when the fan starts
+    safety_critical: true
+    evidence:
+      student_keywords: [resets, restarts, "starts over", "keeps restarting", reboots]
+      photo_finding: diode_missing_or_reversed
+    hints:
+      - Unplug the USB cable if anything feels warm. A board that restarts when the motor starts usually has a power problem in the fan circuit.
+      - Check the diode across the motor and the shared GND rail. Are all GND wires in the same rail?
+      - The diode is probably missing or reversed, so the motor's voltage spike disturbs the UNO.
+      - With USB unplugged, put the diode across the motor with its stripe on the 5V side, and keep the motor wires away from the sensor wires.

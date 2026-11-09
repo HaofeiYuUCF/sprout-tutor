@@ -1,6 +1,9 @@
-// Seeded fault: integer division makes volts 0, so every reading is -50.0
+// Seeded fault: integer division in the resistance formula
 
 const int TEMP_PIN = A0;
+const float R_FIXED = 10000.0;
+const float R0 = 10000.0;
+const float BETA = 3950.0;
 
 void setup() {
   Serial.begin(9600);
@@ -8,8 +11,8 @@ void setup() {
 
 void loop() {
   int raw = analogRead(TEMP_PIN);
-  float volts = raw * (5 / 1023);
-  float tempC = (volts - 0.5) * 100.0;
+  float r = R_FIXED * (1023 / raw - 1.0);
+  float tempC = 1.0 / (1.0 / 298.15 + log(r / R0) / BETA) - 273.15;
   Serial.print("raw=");
   Serial.print(raw);
   Serial.print(" temp_c=");

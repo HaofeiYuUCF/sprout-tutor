@@ -1,9 +1,0 @@
-schema_version: 1
-components:
-  - {ref: UNO, type: arduino_uno_r3}
-  - {ref: R1, type: resistor, value: 220 ohm}
-  - {ref: LED1, type: led, value: red}
-nodes:
-  - {name: pin8, members: [UNO.D8, R1.1]}
-  - {name: led_anode, members: [R1.2, LED1.anode]}
-  - {name: gnd, members: [LED1.cathode, UNO.GND]}

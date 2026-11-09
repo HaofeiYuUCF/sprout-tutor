@@ -1,0 +1,13 @@
+schema_version: 1
+components:
+  - {ref: UNO, type: arduino_uno_r3}
+  - {ref: R1, type: resistor, value: 1k ohm}
+  - {ref: Q1, type: npn_transistor, value: PN2222}
+  - {ref: D1, type: diode, value: 1N4007}
+  - {ref: M1, type: dc_motor}
+nodes:
+  - {name: control, members: [UNO.D9, R1.1]}
+  - {name: base, members: [R1.2, Q1.base]}
+  - {name: collector, members: [Q1.collector, M1.2, D1.anode]}
+  - {name: vcc, members: [UNO.5V, M1.1, D1.cathode]}
+  - {name: gnd, members: [Q1.emitter, UNO.GND]}

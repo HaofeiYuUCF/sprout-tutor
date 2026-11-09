@@ -1,0 +1,80 @@
+schema_version: 1
+card_id: c01_vent_fan
+# Hints: [1 where, 2 general check, 3 specific issue, 4 fix]. Step 4 never pastes a full sketch.
+faults:
+  - id: missing_semicolon
+    class: compile
+    title: Missing semicolon
+    evidence:
+      compile_regex: "expected ';' before"
+    seed: missing_semicolon
+    hints:
+      - The problem is in your code, not your wiring. The computer stopped before sending it to the board.
+      - Read the first error message. It names a line number. Look at the line just above it, too.
+      - A statement on or just before that line is missing the character that ends every C++ statement.
+      - Add a semicolon ( ; ) at the end of the statement the message points to, then check your code again.
+
+  - id: pin_mode_missing
+    class: logic
+    title: Output pin not configured
+    evidence:
+      code_missing_regex: "pinMode\\s*\\("
+      student_keywords: [dim, faint, barely, weak, "turns slowly", "spins slowly"]
+    seed: pin_mode_missing
+    hints:
+      - This looks like a code issue in how pin 9 is set up, not a wiring fault. If the messages show FAN ON / FAN OFF, the board and upload are fine.
+      - Every pin you drive must be told what job it has before loop() starts. Check what setup() does.
+      - setup() never configures pin 9 as an output, so the pin only gives a weak trickle of current.
+      - "In setup(), add a line that sets FAN_PIN to OUTPUT using pinMode."
+
+  - id: fan_not_running
+    class: wiring
+    title: Fan or test LED stays off although the code runs
+    evidence:
+      context_serial_regex: "FAN (ON|OFF)"
+      student_keywords: ["not spin", "doesn't spin", "does not spin", "won't spin", "not turning", "doesn't turn", "stays off", "not light", "doesn't light", "does not light", "no light"]
+      photo_finding: fan_circuit_open
+    hints:
+      - If the messages switch between FAN ON and FAN OFF, the code is running, so look at the circuit.
+      - "Trace the path: pin 9 to the 1k resistor to the transistor's middle leg. Then 5V to the motor to the transistor's right leg, and the transistor's left leg to GND. Is every link in the same breadboard column?"
+      - The transistor only switches if its legs are the right way round (flat face toward you, left to right - emitter, base, collector) and the emitter goes to GND.
+      - Put the emitter (left leg) on GND, the base (middle) on the 1k resistor and the collector (right) on the motor, then send your code again.
+
+  - id: motor_on_pin
+    class: wiring
+    title: Motor wired straight to the pin
+    safety_critical: true
+    evidence:
+      photo_finding: motor_direct_to_pin
+      student_keywords: ["straight to the pin", "directly to the pin", "board resets", "board restarts", "usb disconnects"]
+    hints:
+      - Unplug the USB cable first. A motor wired straight to a pin draws more current than the pin can give and can damage the board.
+      - A pin can light an LED, but a motor needs far more current. Something has to switch the motor for the pin.
+      - The motor is connected to the pin directly instead of through the transistor.
+      - With USB unplugged, wire the motor between 5V and the transistor's right leg, and connect pin 9 to the middle leg through the 1k resistor.
+
+  - id: diode_problem
+    class: wiring
+    title: Protection diode missing or reversed
+    safety_critical: true
+    evidence:
+      photo_finding: diode_missing_or_reversed
+      student_keywords: [hot, warm, "gets hot", "diode", "keeps resetting", "restarts"]
+    hints:
+      - Unplug the USB cable if anything feels warm. Then look at the small diode next to the motor.
+      - When a motor switches off it makes a short voltage spike. The diode across the motor gives that spike a safe path.
+      - The diode is missing or the wrong way round. A reversed diode shorts 5V to GND whenever the fan turns on.
+      - With USB unplugged, put the diode across the two motor leads with its silver stripe on the 5V side.
+
+  - id: led_no_resistor
+    class: wiring
+    title: Test LED wired without its resistor
+    safety_critical: true
+    evidence:
+      photo_finding: missing_resistor
+      student_keywords: ["very bright", "no resistor", "burned", "burnt"]
+    hints:
+      - Unplug the USB cable first. An LED without a resistor draws too much current and can damage the LED or the board.
+      - Every LED needs a resistor in series. Look for it on the path from pin 9 to GND.
+      - The resistor is missing from the LED's path.
+      - With USB unplugged, put the 220 ohm resistor between pin 9 and the LED's long leg, then plug back in.

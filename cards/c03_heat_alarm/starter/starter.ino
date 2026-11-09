@@ -1,18 +1,23 @@
 // Card 03: Greenhouse heat alarm (starter)
-// TMP36 on A0 (flat face toward you: 5V, A0, GND). LED + 220 ohm resistor on pin 8.
+// Thermistor divider on A0 (as in card 2). Active buzzer: long leg (+) to pin 8, short leg to GND.
 
 const int TEMP_PIN = A0;
-const int ALARM_LED_PIN = 8;
-const float ALARM_C = 30.0;
+const int BUZZER_PIN = 8;
+const float ALARM_C = 28.0;     // alarm above this temperature
+const float R_FIXED = 10000.0;
+const float R0 = 10000.0;
+const float BETA = 3950.0;
 
 void setup() {
   Serial.begin(9600);
-  // TODO: set the LED pin as an output
+  // TODO: set BUZZER_PIN as an output
 }
 
 void loop() {
-  // TODO: read the sensor and convert to tempC (reuse your card 02 code)
-  // TODO: if tempC is above ALARM_C, turn the LED on; otherwise turn it off
+  int raw = analogRead(TEMP_PIN);
+  float r = R_FIXED * (1023.0 / raw - 1.0);
+  float tempC = 1.0 / (1.0 / 298.15 + log(r / R0) / BETA) - 273.15;
+  // TODO: if tempC is above ALARM_C, turn the buzzer on; otherwise turn it off
   // TODO: print a line like: temp_c=24.8 alarm=OFF
   delay(500);
 }

@@ -1,55 +1,52 @@
 schema_version: 2
 id: c03_heat_alarm
 title: Greenhouse heat alarm
-version: 1
+version: 3
 stage: seed
 learning_objectives:
-  - Combine an analog input and a digital output in one sketch.
-  - Use an if/else threshold to make a decision from a sensor reading.
-  - Test a threshold by deliberately changing the input (warming the sensor).
+  - Compare a reading with a threshold using if and else.
+  - Switch an output (the buzzer) based on a sensor reading.
+  - Choose a threshold you can test, and test it.
 agriculture_connection: >-
-  Above about 30 °C many greenhouse crops lose yield, so controllers open vents or start
-  fans when a threshold is crossed. This alarm is the first half of that controller; in a
-  later card the LED pin drives a relay for a low-voltage fan.
+  Growers need to know when a greenhouse gets dangerously hot, for example when a vent fails on a
+  sunny afternoon. This card sounds an alarm above a temperature you choose.
 parts:
   - {name: Arduino UNO R3 (or compatible), qty: 1}
   - {name: Breadboard, qty: 1}
-  - {name: TMP36 temperature sensor, qty: 1}
-  - {name: Red LED, qty: 1}
-  - {name: 220 ohm resistor, qty: 1}
-  - {name: Jumper wire, qty: 6}
+  - {name: Thermistor (10k NTC), qty: 1}
+  - {name: 10k ohm resistor, qty: 1}
+  - {name: Active buzzer, qty: 1}
+  - {name: Jumper wire, qty: 5}
   - {name: USB cable, qty: 1}
 safety:
   - Low-voltage DC only (5 V from USB).
-  - Always put a resistor in series with an LED.
-  - If the sensor feels hot, unplug USB at once. Power and ground are swapped.
 tinkercad:
-  note: >-
-    Combine the circuits from cards 01 and 02 in Tinkercad: TMP36 on A0, LED with a 220 ohm
-    resistor on pin 8. Run the simulation and drag the temperature above and below 30 °C.
+  note: Optional extra. Tinkercad Circuits has no thermistor, so use the SPROUT simulator for this card.
 steps:
   - id: simulate
     kind: simulate
     text: >-
-      Wire the sensor and the LED in the simulator, then press "Test my wiring". The LED
-      should blink and the sensor should report a temperature.
+      Wire the thermistor divider and the buzzer (long leg + to pin 8, short leg to GND) in the
+      simulator, then press "Test my wiring". The buzzer should beep and the sensor should report
+      a temperature.
   - id: build
     kind: build
     text: >-
-      Build it on the breadboard. Keep the sensor and the LED on separate rows. Red wires for
-      5 V, black for GND. This is the circuit used for the photo check.
+      Build it on the breadboard: the thermistor divider from card 2 on A0, and the active buzzer
+      with its long leg (+) to pin 8 and its short leg to GND. Keep the two circuits in separate
+      columns.
   - id: code
     kind: code
     text: >-
-      Start from your card 02 code. Add the LED pin as an output. If temp_c is above 30.0,
-      turn the LED on; otherwise turn it off. Print "temp_c=24.8 alarm=OFF" each reading.
+      Set the buzzer pin as an output. If tempC is above ALARM_C, turn the buzzer on; otherwise
+      turn it off. Print a line like "temp_c=24.8 alarm=OFF" for each reading.
   - id: run
     kind: run
     text: >-
       Send your code to the board. At room temperature the alarm should be OFF. Pinch the
-      sensor until it passes 30 °C and watch the LED and the messages switch to ON.
+      thermistor until it passes 28 °C, listen for the buzzer, and watch the messages switch to ON.
   - id: reflect
     kind: reflect
     text: >-
-      If the temperature hovers right at 30 °C, the alarm will flicker on and off. Real
-      controllers avoid this. How could you change the rule so a fan does not chatter?
+      If the temperature hovers right at the threshold, the alarm will switch on and off again and
+      again. Real controllers avoid this. How could you change the rule so it does not chatter?
