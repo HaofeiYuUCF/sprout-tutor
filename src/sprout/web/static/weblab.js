@@ -732,6 +732,31 @@
     $("help-fab").hidden = !(document.body.dataset.screen === "card" && state.cardId);
   }
 
+  // Tutor replies use a little Markdown: **bold**, *italic*, `code`, ``` blocks, # headings.
+  // The text comes from a model, so build DOM nodes and never set innerHTML.
+  const MD_INLINE = /(`+)([^`\n]+?)\1|\*\*(\S(?:[^\n]*?\S)?)\*\*|(^|[^\w*])\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?![\w*])/g;
+  function mdInline(parent, text) {
+    let last = 0;
+    for (const m of text.matchAll(MD_INLINE)) {
+      if (m.index > last) parent.append(text.slice(last, m.index));
+      if (m[2] !== undefined) parent.append(el("code", "", m[2]));
+      else if (m[3] !== undefined) { const b = el("b"); mdInline(b, m[3]); parent.append(b); }
+      else parent.append(m[4], el("i", "", m[5])); // m[4]: the character before *, so 2*3*4 stays plain
+      last = m.index + m[0].length;
+    }
+    if (last < text.length) parent.append(text.slice(last));
+  }
+  function mdBody(text) {
+    const body = el("div", "body");
+    const parts = String(text == null ? "" : text).split(/```[^\n]*\n?/); // odd parts are code blocks
+    parts.forEach((part, i) => {
+      if (i % 2) { body.append(el("pre", "", part.replace(/\n+$/, ""))); return; }
+      if (i < parts.length - 1) part = part.replace(/\n+$/, "");
+      mdInline(body, part.replace(/^#{1,4} +(.+)$/gm, "**$1**"));
+    });
+    return body;
+  }
+
   async function askHint() {
     if (!state.cardId) return;
     state.asking = true;
@@ -743,7 +768,7 @@
       const box = el("div", "hint");
       const meta = el("div", "meta");
       meta.append(el("b", "", r.source_label), document.createTextNode(` · hint ${r.step} of ${r.max_step}`));
-      box.append(meta, el("div", "body", r.text));
+      box.append(meta, mdBody(r.text));
       $("hints").appendChild(box);
       $("question").value = "";
     } catch (e) {
