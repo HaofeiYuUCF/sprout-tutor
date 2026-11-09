@@ -9,7 +9,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-from ..hardware.board import ArduinoCliBoard
+from ..hardware.board import ArduinoCliBoard, CompileResult
 
 MAX_CODE_BYTES = 64_000
 SKETCH = "weblab"  # arduino-cli needs <folder>/<folder>.ino
@@ -53,12 +53,17 @@ class CompileService:
         return Path(self.board.cli).exists()
 
     def compile(self, code: object) -> dict:
+        return self.compile_full(code)[0]
+
+    def compile_full(self, code: object) -> tuple[dict, CompileResult | None]:
+        """The browser's JSON reply, plus the CompileResult (None if nothing was compiled)."""
         if not isinstance(code, str):
-            return _fail("No code was sent.")
+            return _fail("No code was sent."), None
         if len(code.encode("utf-8")) > MAX_CODE_BYTES:
-            return _fail(f"The sketch is longer than {MAX_CODE_BYTES // 1000} kB.")
+            return _fail(f"The sketch is longer than {MAX_CODE_BYTES // 1000} kB."), None
         if not self.available():
-            return _fail("arduino-cli is not installed on the server (run scripts/setup_arduino_cli.ps1).")
+            return _fail("arduino-cli is not installed on the server "
+                         "(run scripts/setup_arduino_cli.ps1)."), None
         t0 = time.time()
         with self._lock:
             sk = self.work_dir / SKETCH
@@ -77,7 +82,7 @@ class CompileService:
         if r.ok and hex_text is None:
             errors = [{"line": 0, "message": "Compiled, but no .hex file was produced."}]
         return {"ok": ok, "errors": errors, "hex": hex_text, "flash_bytes": r.flash_bytes,
-                "flash_max": r.flash_max, "compile_ms": round((time.time() - t0) * 1000)}
+                "flash_max": r.flash_max, "compile_ms": round((time.time() - t0) * 1000)}, r
 
 
 def _fail(message: str) -> dict:

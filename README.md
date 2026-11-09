@@ -65,5 +65,12 @@ to the UNO over Web Serial (Chrome or Edge only). Nothing is open to other machi
 4. Each upload is logged in `data/weblab/upload_trials.jsonl` (success, error type, time, USB chip
    ID; no names or code), for the reliability numbers.
 
+Tutor in the Web Lab: pick a card (not the hello test) to see its steps, use **Check my work**,
+and **Get a hint**. The hint ladder, guardrails and the API key stay on the server; the browser
+sends only the code, recent serial lines and the student's message. Add `?learner=l_ab12` to the
+URL for an anonymous learner ID (events go to `data/events/`, same format as the desktop app).
+Set `SPROUT_LLM_PROVIDER=anthropic` in `.env` for real AI hints; curated hints need no AI.
+In test mode the Sketch list also offers the seeded-fault sketches for demos.
+
 Uploader tests without a board: start with `SPROUT_WEBLAB_TEST=1`, then open
 http://localhost:8080/weblab/test/stk500_test.html (simulated bootloader, 12 checks).

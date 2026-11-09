@@ -76,3 +76,33 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .log table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .log th, .log td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .trace { font-size: 12px; max-height: 260px; overflow: auto; background: var(--code-bg); padding: 8px; border-radius: 6px; }
+/* three columns: card+tutor | editor | board */
+.grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+@media (max-width: 1280px) {
+  .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .grid .tutor { grid-column: 1 / -1; order: 3; }
+}
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.card-body { display: flex; flex-direction: column; gap: 10px; }
+.card-body h2 { margin: 0; font-size: 18px; text-wrap: balance; }
+.ag { margin: 0; color: var(--muted); font-size: 13.5px; }
+.safety { margin: 0; padding: 8px 12px 8px 28px; background: var(--warn-bg); color: var(--warn-fg);
+  border-radius: 6px; font-size: 13px; }
+.steps { display: flex; flex-direction: column; gap: 4px; }
+.steps details { border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; }
+.steps details[open] { border-color: var(--accent); }
+.steps summary { cursor: pointer; font-weight: 600; font-size: 14px; }
+.steps p { margin: 6px 0 2px; font-size: 13.5px; }
+.checks { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.checks .pass { color: var(--ok); }
+.checks .todo { color: var(--muted); }
+.checks .done { color: var(--ok); font-weight: 600; margin-top: 4px; }
+.tutor-head { margin-top: 6px; }
+#question { min-height: 0; font-family: inherit; font-size: 14px; }
+.hints { display: flex; flex-direction: column-reverse; gap: 8px; }
+.hint { border-left: 3px solid var(--accent); padding: 6px 10px; background: var(--code-bg);
+  border-radius: 0 6px 6px 0; }
+.hint .meta { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.hint .meta b { color: var(--accent); font-weight: 600; }
+.hint .body { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.hint.err { border-left-color: var(--err); }

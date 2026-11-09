@@ -18,7 +18,9 @@ from ..config import data_dir, load_settings, repo_root
 from ..content import load_cards
 from ..hardware.board import ArduinoCliBoard
 from ..hardware.ports import KNOWN
+from ..runtime import build_tutor
 from .compile_service import HELLO_SKETCH, CompileService, append_trial, clean_trial
+from .tutor_api import BadRequest, WebTutor, card_view
 
 STATIC = Path(__file__).parent / "static"
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
@@ -42,13 +44,29 @@ def _guard(request: Request, json_body: bool = False) -> JSONResponse | None:
     return None
 
 
-def sketch_list(root: Path) -> list[dict]:
-    """The hello test plus each card's starter code (never the reference solutions)."""
-    items = [{"id": "hello", "title": "Hello UNO (no parts needed)", "code": HELLO_SKETCH}]
+def sketch_list(root: Path, include_seeds: bool = False) -> list[dict]:
+    """The hello test plus each card's starter code (never the reference solutions).
+
+    include_seeds (test mode only) adds the seeded-fault sketches used for demos and evaluation.
+    """
+    items = [{"id": "hello", "card_id": None, "title": "Hello UNO (no parts needed)",
+              "code": HELLO_SKETCH}]
     for c in load_cards(root).values():
-        items.append({"id": c.id, "title": f"{c.card.title} (starter)",
+        items.append({"id": c.id, "card_id": c.id, "title": f"{c.card.title} (starter)",
                       "code": c.starter.read_text(encoding="utf-8")})
+        if include_seeds:
+            for name, path in c.seeds.items():
+                items.append({"id": f"{c.id}:{name}", "card_id": c.id,
+                              "title": f"{c.card.title}: seeded fault '{name}'",
+                              "code": path.read_text(encoding="utf-8")})
     return items
+
+
+async def _body(request: Request) -> dict:
+    body = await request.json()
+    if not isinstance(body, dict):
+        raise BadRequest("send a JSON object")
+    return body
 
 
 def register(app: FastAPI, root: Path | None = None) -> None:
@@ -59,10 +77,23 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     d = data_dir(root)
     service = CompileService(board, d / "work" / "_weblab")
     trials = d / "weblab" / "upload_trials.jsonl"
+    test_mode = os.environ.get("SPROUT_WEBLAB_TEST") == "1"
+    cards = load_cards(root)
+    tutor = WebTutor(cards, lambda learner: build_tutor(learner, root))
 
     app.add_static_files("/weblab/static", STATIC, max_cache_age=0)
-    if os.environ.get("SPROUT_WEBLAB_TEST") == "1":
+    if test_mode:
         app.add_static_files("/weblab/test", root / "tests" / "js", max_cache_age=0)
+
+    async def tutor_call(request: Request, fn):
+        """Guard, parse, run a WebTutor action in the thread pool; BadRequest becomes a 400."""
+        if bad := _guard(request, json_body=True):
+            return bad
+        try:
+            body = await _body(request)
+            return await run_in_threadpool(fn, body)
+        except BadRequest as e:
+            return JSONResponse({"error": str(e)}, 400)
 
     @app.get("/weblab")
     def weblab_page(request: Request):
@@ -71,7 +102,9 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     @app.get("/api/weblab/config")
     def weblab_config(request: Request):
         return _guard(request) or {
-            "sketches": sketch_list(root),
+            "sketches": sketch_list(root, include_seeds=test_mode),
+            "cards": {cid: card_view(c) for cid, c in cards.items()},
+            "llm_provider": s.llm.provider,
             "compiler_ready": service.available(),
             "known_boards": [{"usbVendorId": v, "usbProductId": p, "name": n}
                              for (v, p), n in KNOWN.items()],
@@ -82,9 +115,45 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     async def weblab_compile(request: Request):
         if bad := _guard(request, json_body=True):
             return bad
-        body = await request.json()
-        code = body.get("code") if isinstance(body, dict) else None
-        return await run_in_threadpool(service.compile, code)
+        try:
+            body = await _body(request)
+        except BadRequest as e:
+            return JSONResponse({"error": str(e)}, 400)
+        code = body.get("code")
+        reply, result = await run_in_threadpool(service.compile_full, code)
+        if result is not None and body.get("learner") and body.get("card_id"):
+            try:  # tell the tutor (a compile counts on the hint ladder); never block the reply
+                await run_in_threadpool(tutor.record_compile, body["learner"], body["card_id"],
+                                        code, result)
+            except BadRequest:
+                pass
+        return reply
+
+    @app.post("/api/weblab/card_open")
+    async def weblab_card_open(request: Request):
+        def act(b):
+            tutor.open_card(b.get("learner"), b.get("card_id"))
+            return {"ok": True}
+        return await tutor_call(request, act)
+
+    @app.post("/api/weblab/upload_done")
+    async def weblab_upload_done(request: Request):
+        def act(b):
+            tutor.record_upload(b.get("learner"), b.get("card_id"), b.get("code"),
+                                b.get("ok") is True, str(b.get("error_code") or ""))
+            return {"ok": True}
+        return await tutor_call(request, act)
+
+    @app.post("/api/weblab/check")
+    async def weblab_check(request: Request):
+        return await tutor_call(request, lambda b: tutor.check(
+            b.get("learner"), b.get("card_id"), b.get("code"), b.get("serial")))
+
+    @app.post("/api/weblab/hint")
+    async def weblab_hint(request: Request):
+        return await tutor_call(request, lambda b: tutor.hint(
+            b.get("learner"), b.get("card_id"), b.get("code"), b.get("serial"),
+            b.get("message"), b.get("step_id")))
 
     @app.post("/api/weblab/trial")
     async def weblab_trial(request: Request):

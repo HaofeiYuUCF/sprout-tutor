@@ -23,6 +23,36 @@
   </section>
 
   <div class="grid">
+    <section class="panel tutor" aria-label="Card and tutor">
+      <div class="panel-head">
+        <span class="label">Card</span>
+        <span class="spacer"></span>
+        <span id="learner" class="pill off" title="Anonymous learner ID"></span>
+      </div>
+      <p id="card-empty" class="muted">Choose a card in the Sketch list to work with the tutor.</p>
+      <div id="card-body" class="card-body" hidden>
+        <h2 id="card-title"></h2>
+        <p id="card-ag" class="ag"></p>
+        <ul id="card-safety" class="safety"></ul>
+        <div id="card-steps" class="steps"></div>
+        <div class="actions">
+          <button id="btn-check">Check my work</button>
+        </div>
+        <div id="check-out" class="checks" aria-live="polite"></div>
+        <div class="panel-head tutor-head">
+          <span class="label">Tutor</span>
+          <span class="spacer"></span>
+          <span id="llm-mode" class="muted"></span>
+        </div>
+        <textarea id="question" rows="3"
+          placeholder="What do you see? What did you expect? (optional)"></textarea>
+        <div class="actions">
+          <button id="btn-hint" class="primary">Get a hint</button>
+        </div>
+        <div id="hints" class="hints" aria-live="polite"></div>
+      </div>
+    </section>
+
     <section class="panel editor">
       <div class="panel-head">
         <label for="sketch">Sketch</label>

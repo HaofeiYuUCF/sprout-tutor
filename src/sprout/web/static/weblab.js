@@ -1,4 +1,5 @@
-/* SPROUT Web Lab page logic: compile on the server, upload and monitor in the browser. */
+/* SPROUT Web Lab page logic: compile on the server, upload and monitor in the browser, and ask
+ * the server-side tutor for checks and hints (ladder rules and guardrails run on the server). */
 (function () {
   "use strict";
   const { parseIntelHex, Stk500Uploader, WebSerialTransport, UNO } = window.SproutUpload;
@@ -12,7 +13,15 @@
     busy: false,
     trials: [],
     decoder: new TextDecoder(),
+    learner: "l_demo",
+    cardId: null,      // card of the selected sketch (null for the hello test)
+    stepId: null,      // card step the student has open
+    serialLines: [],   // complete serial lines since the last upload (sent to the tutor)
+    serialPartial: "",
+    asking: false,
   };
+
+  const LEARNER_ID = /^l_[a-z0-9]{3,12}$/;
 
   // ---------- helpers ----------
   async function postJson(url, body) {
@@ -56,6 +65,15 @@
     $("btn-connect").disabled = state.busy || connected || !("serial" in navigator);
     $("btn-disconnect").disabled = state.busy || !connected;
     $("baud").disabled = state.busy;
+    $("btn-check").disabled = state.busy || state.asking;
+    $("btn-hint").disabled = state.busy || state.asking;
+  }
+
+  function collectSerial(text) {
+    const parts = (state.serialPartial + text).split(/\r?\n/);
+    state.serialPartial = parts.pop().slice(-300);
+    for (const line of parts) if (line.trim()) state.serialLines.push(line.slice(0, 300));
+    if (state.serialLines.length > 300) state.serialLines.splice(0, state.serialLines.length - 300);
   }
 
   function appendMonitor(text) {
@@ -71,7 +89,8 @@
     if (state.compiled && state.compiled.code === code) return state.compiled;
     show($("compile-out"), [["muted", "Compiling on the server…"]]);
     $("size").textContent = "";
-    const r = await postJson("/api/weblab/compile", { code });
+    const r = await postJson("/api/weblab/compile",
+      { code, learner: state.learner, card_id: state.cardId });
     if (!r.ok) {
       state.compiled = null;
       show($("compile-out"), r.errors.map((e) =>
@@ -105,7 +124,11 @@
 
   async function openPort(port, baud) {
     const t = new WebSerialTransport(port);
-    t.onData = (chunk) => appendMonitor(state.decoder.decode(chunk, { stream: true }));
+    t.onData = (chunk) => {
+      const text = state.decoder.decode(chunk, { stream: true });
+      appendMonitor(text);
+      collectSerial(text);
+    };
     t.onLost = () => {
       setBoardStatus("connection lost", "off");
       state.transport = null;
@@ -166,6 +189,8 @@
         },
       });
       const r = await uploader.upload(image);
+      state.serialLines = []; // the tutor judges output from the new program only
+      state.serialPartial = "";
       trial.ok = true;
       trial.upload_ms = r.ms;
       show(out, [["ok", `Uploaded and verified ${r.bytes} bytes in ${(r.ms / 1000).toFixed(1)} s.`]]);
@@ -201,6 +226,11 @@
       state.busy = false;
       refreshButtons();
       if (trial.error_code !== "compile_error") recordTrial(trial);
+      if (state.cardId && trial.error_code !== "compile_error") {
+        postJson("/api/weblab/upload_done", { learner: state.learner, card_id: state.cardId,
+          code: $("code").value, ok: trial.ok, error_code: trial.error_code })
+          .catch(() => { /* logging is best-effort */ });
+      }
     }
   }
 
@@ -222,12 +252,102 @@
     postJson("/api/weblab/trial", body).catch(() => { /* logging is best-effort */ });
   }
 
+  // ---------- card and tutor ----------
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function renderCard() {
+    const card = state.cardId ? state.config.cards[state.cardId] : null;
+    $("card-empty").hidden = !!card;
+    $("card-body").hidden = !card;
+    $("check-out").replaceChildren();
+    $("hints").replaceChildren();
+    $("question").value = "";
+    state.stepId = null;
+    if (!card) return;
+    $("card-title").textContent = card.title;
+    $("card-ag").textContent = card.agriculture_connection;
+    $("card-safety").replaceChildren(...card.safety.map((x) => el("li", "", x)));
+    $("card-safety").hidden = card.safety.length === 0;
+    const steps = card.steps.map((st, i) => {
+      const d = el("details");
+      d.append(el("summary", "", `${i + 1}. ${st.kind[0].toUpperCase()}${st.kind.slice(1)}`),
+        el("p", "", st.text));
+      if (st.kind === "simulate") d.append(el("p", "muted", `Tinkercad: ${card.tinkercad}`));
+      d.addEventListener("toggle", () => {
+        if (!d.open) return;
+        state.stepId = st.id;
+        for (const other of $("card-steps").children) if (other !== d) other.open = false;
+      });
+      return d;
+    });
+    $("card-steps").replaceChildren(...steps);
+  }
+
+  async function openCard() {
+    renderCard();
+    if (!state.cardId) return;
+    try {
+      await postJson("/api/weblab/card_open", { learner: state.learner, card_id: state.cardId });
+    } catch (_) { /* logging is best-effort */ }
+  }
+
+  async function checkWork() {
+    state.asking = true;
+    refreshButtons();
+    try {
+      const r = await postJson("/api/weblab/check", { learner: state.learner, card_id: state.cardId,
+        code: $("code").value, serial: state.serialLines });
+      const rows = r.results.map((x) =>
+        el("div", x.passed ? "pass" : "todo", `${x.passed ? "✓" : "○"} ${x.id}: ${x.detail}`));
+      if (r.all_passed) rows.push(el("div", "done", "Card complete. Go on to the Reflect step."));
+      $("check-out").replaceChildren(...rows);
+    } catch (e) {
+      $("check-out").replaceChildren(el("div", "todo", `Could not check: ${e.message}`));
+    } finally {
+      state.asking = false;
+      refreshButtons();
+    }
+  }
+
+  async function askHint() {
+    state.asking = true;
+    refreshButtons();
+    const message = $("question").value;
+    try {
+      const r = await postJson("/api/weblab/hint", { learner: state.learner, card_id: state.cardId,
+        code: $("code").value, serial: state.serialLines, message, step_id: state.stepId });
+      const box = el("div", "hint");
+      const meta = el("div", "meta");
+      meta.append(el("b", "", r.source_label), document.createTextNode(
+        ` · hint ${r.step} of ${r.max_step} (${r.step_name})`));
+      box.append(meta, el("div", "body", r.text));
+      $("hints").appendChild(box);
+      $("question").value = "";
+    } catch (e) {
+      const box = el("div", "hint err");
+      box.append(el("div", "body", `The tutor is not available right now (${e.message}).`));
+      $("hints").appendChild(box);
+    } finally {
+      state.asking = false;
+      refreshButtons();
+    }
+  }
+
   // ---------- start ----------
   async function init() {
     if (!("serial" in navigator)) $("unsupported").hidden = false;
     const r = await fetch("/api/weblab/config");
     state.config = await r.json();
     if (!state.config.compiler_ready) $("no-compiler").hidden = false;
+    const fromUrl = new URLSearchParams(location.search).get("learner");
+    if (fromUrl && LEARNER_ID.test(fromUrl)) state.learner = fromUrl;
+    $("learner").textContent = state.learner;
+    $("llm-mode").textContent = state.config.llm_provider === "anthropic" ? "AI: Claude" : "AI: offline mock";
     const sel = $("sketch");
     for (const s of state.config.sketches) {
       const o = document.createElement("option");
@@ -241,6 +361,11 @@
       state.compiled = null;
       $("size").textContent = "";
       show($("compile-out"), []);
+      const cardId = s ? s.card_id : null;
+      if (cardId !== state.cardId || cardId) {
+        state.cardId = cardId;
+        openCard();
+      }
     };
     sel.addEventListener("change", load);
     load();
@@ -263,6 +388,8 @@
     $("btn-connect").addEventListener("click", connect);
     $("btn-disconnect").addEventListener("click", disconnect);
     $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; });
+    $("btn-check").addEventListener("click", checkWork);
+    $("btn-hint").addEventListener("click", askHint);
     $("baud").addEventListener("change", async () => {
       if (state.transport?.isOpen) {
         state.decoder = new TextDecoder();
