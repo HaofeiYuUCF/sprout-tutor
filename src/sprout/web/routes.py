@@ -7,8 +7,11 @@ which this server never approves).
 
 from __future__ import annotations
 
+import base64
 import logging
 import os
+import re
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -26,6 +29,8 @@ from .tutor_api import BadRequest, WebTutor, card_view
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger("sprout.weblab")
 LOCAL_HOSTS = {"127.0.0.1", "localhost"}
+MAX_PHOTO_BYTES = 8_000_000
+SAFE_NAME = re.compile(r"^[a-z0-9_]{1,40}$")
 
 
 def is_local(request: Request) -> bool:
@@ -106,6 +111,38 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     @app.get("/weblab")
     def weblab_page(request: Request):
         return _guard(request) or FileResponse(STATIC / "weblab.html")
+
+    @app.get("/weblab/camera")
+    def camera_page(request: Request):
+        return _guard(request) or FileResponse(STATIC / "camera.html")
+
+    @app.post("/api/weblab/photo")
+    async def weblab_photo(request: Request):
+        """Save one JPEG from the camera page under data/photos/<learner>/<card>/ (local test only)."""
+        if bad := _guard(request, json_body=True):
+            return bad
+        body = await request.json()
+        if not isinstance(body, dict):
+            return JSONResponse({"error": "send a JSON object"}, 400)
+        image = body.get("image")
+        prefix = "data:image/jpeg;base64,"
+        if not isinstance(image, str) or not image.startswith(prefix):
+            return JSONResponse({"error": "image must be a JPEG data URL"}, 400)
+        try:
+            data = base64.b64decode(image[len(prefix):], validate=True)
+        except ValueError:
+            return JSONResponse({"error": "bad image data"}, 400)
+        if len(data) > MAX_PHOTO_BYTES or data[:2] != b"\xff\xd8":
+            return JSONResponse({"error": "not a JPEG, or larger than 8 MB"}, 400)
+        learner = body.get("learner") if isinstance(body.get("learner"), str) else "test"
+        card = body.get("card_id") if isinstance(body.get("card_id"), str) else "none"
+        if not SAFE_NAME.match(learner) or not SAFE_NAME.match(card):
+            return JSONResponse({"error": "bad learner or card name"}, 400)
+        folder = d / "photos" / learner / card
+        name = time.strftime("%Y%m%d-%H%M%S") + f"-{int(time.time() * 1000) % 1000:03d}.jpg"
+        await run_in_threadpool(lambda: (folder.mkdir(parents=True, exist_ok=True),
+                                         (folder / name).write_bytes(data)))
+        return {"saved": f"data/photos/{learner}/{card}/{name}", "bytes": len(data)}
 
     @app.get("/api/weblab/config")
     def weblab_config(request: Request):
