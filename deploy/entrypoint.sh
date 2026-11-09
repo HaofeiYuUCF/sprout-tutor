@@ -4,6 +4,7 @@ set -e
 mkdir -p "${SPROUT_DATA_DIR:-/data}"
 if [ "$(id -u)" = "0" ]; then
   chown -R app:app "${SPROUT_DATA_DIR:-/data}" 2>/dev/null || true
+  export HOME=/home/app USER=app      # setpriv keeps root's HOME; tools write their caches under it
   exec setpriv --reuid=app --regid=app --init-groups "$@"
 fi
 exec "$@"

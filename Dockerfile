@@ -16,10 +16,11 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 # arduino-cli and the AVR core (same versions as the lab laptop), in /opt/arduino.
+# The build cache goes there too: its default is under $HOME, which the app user may not own.
 RUN curl -fsSL "https://downloads.arduino.cc/arduino-cli/arduino-cli_${ARDUINO_CLI_VERSION}_Linux_64bit.tar.gz" \
       | tar -xz -C /usr/local/bin arduino-cli \
- && mkdir -p /opt/arduino/data /opt/arduino/user \
- && printf 'directories:\n  data: /opt/arduino/data\n  downloads: /opt/arduino/data/staging\n  user: /opt/arduino/user\n' \
+ && mkdir -p /opt/arduino/data /opt/arduino/user /opt/arduino/cache \
+ && printf 'directories:\n  data: /opt/arduino/data\n  downloads: /opt/arduino/data/staging\n  user: /opt/arduino/user\nbuild_cache:\n  path: /opt/arduino/cache\n' \
       > /opt/arduino/arduino-cli.yaml \
  && arduino-cli --config-file /opt/arduino/arduino-cli.yaml core update-index \
  && arduino-cli --config-file /opt/arduino/arduino-cli.yaml core install "${AVR_CORE}" \
