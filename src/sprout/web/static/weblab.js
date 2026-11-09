@@ -39,7 +39,7 @@
     { id: "build", short: "Build it", title: "Build it on your real board", regions: ["buildref"],
       cardKind: "build", tutorStep: "build",
       text: () => "Copy your simulator wiring onto your real breadboard. Tick each item on the right as you go.",
-      tips: ["Keep the USB cable unplugged while you build.",
+      tips: ["Keep the USB cable unplugged while you build, and unplug it again before you change anything.",
         "Copy your simulator picture: same holes, same pins."] },
     { id: "upload", short: "Send & check", title: "Send your code to your board and check it",
       regions: ["editor", "board", "check"], mode: "board", cardKind: "run", tutorStep: "run",
@@ -247,7 +247,7 @@
   function renderCardInfo(c) {
     $("card-ag").textContent = c.agriculture_connection;
     $("card-objectives").replaceChildren(...c.learning_objectives.map((x) => el("li", "", x)));
-    $("card-parts").replaceChildren(...c.parts.map((x) => el("li", "", x)));
+    window.SproutParts.render($("card-parts"), c.parts);
     for (const id of ["card-safety", "build-safety"]) {
       $(id).replaceChildren(...c.safety.map((x) => el("li", "", x)));
       $(id).hidden = c.safety.length === 0;

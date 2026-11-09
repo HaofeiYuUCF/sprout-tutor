@@ -30,10 +30,13 @@ function init() {
   // Same order as the kit's 830-point breadboard: each pair is + (red line above) then − (blue line below).
   const RAIL_Y = { "T+": 58, "T-": 78, "B+": 346, "B-": 366 };
   const UNO = { x: 20, y: 130, w: 340, h: 220 };   // below a two-row parts tray
+  // Pin layout of a real UNO R3. Ids keep their original numbers; pins added later get 13+ / 109+.
   const TOP = [["GND", 112], ["D13", 128], ["D12", 144], ["D11", 160], ["D10", 176], ["D9", 192],
-    ["D8", 208], ["D7", 240], ["D6", 256], ["D5", 272], ["D4", 288], ["D3", 304], ["D2", 320]];
+    ["D8", 208], ["D7", 240], ["D6", 256], ["D5", 272], ["D4", 288], ["D3", 304], ["D2", 320],
+    ["SCL", 64], ["SDA", 80], ["AREF", 96], ["D1", 336], ["D0", 352]];
   const BOTTOM = [["5V", 144], ["GND", 160], ["GND", 176], ["A0", 240], ["A1", 256], ["A2", 272],
-    ["A3", 288], ["A4", 304], ["A5", 320]];
+    ["A3", 288], ["A4", 304], ["A5", 320], ["IOREF", 96], ["RESET", 112], ["3V3", 128], ["VIN", 192]];
+  const PIN_TEXT = { D1: "TX1", D0: "RX0", "3V3": "3.3V" };
   const LEGS = {                                       // leg x offsets from the first leg
     led: [0, STEP], r220: [0, STEP * 4], r1k: [0, STEP * 4], r10k: [0, STEP * 4],
     thm: [0, STEP * 2], npn: [0, STEP, STEP * 2], diode: [0, STEP * 2], motor: [0, STEP * 2], buzzer: [0, STEP],
@@ -42,9 +45,11 @@ function init() {
   const ORDER = ["led", "r220", "thm", "r10k", "r1k", "npn", "diode", "motor", "buzzer"];
   const NAMES = { led: "LED", r220: "220 Ω resistor", r1k: "1k resistor", r10k: "10k resistor",
     thm: "thermistor", npn: "transistor", diode: "diode", motor: "fan motor", buzzer: "buzzer" };
-  const RES = { r220: { ohms: 220, label: "220 Ω", bands: ["#d22", "#d22", "#7a4a12"] },
-    r1k: { ohms: 1000, label: "1k", bands: ["#7a4a12", "#111", "#d22"] },
-    r10k: { ohms: 10000, label: "10k", bands: ["#7a4a12", "#111", "#e8862a"] } };
+  const BAND = { black: "#151515", brown: "#7a4a12", red: "#d22", orange: "#e8862a" };
+  const RES = {   // 1% metal film, five bands: three digits, multiplier, brown tolerance band
+    r220: { ohms: 220, label: "220 Ω", bands: ["red", "red", "black", "black"] },
+    r1k: { ohms: 1000, label: "1k Ω", bands: ["brown", "black", "black", "brown"] },
+    r10k: { ohms: 10000, label: "10k Ω", bands: ["brown", "black", "black", "red"] } };
   const FLIPPABLE = new Set(["led", "npn", "diode", "buzzer"]);
 
   const terms = new Map();   // id -> { x, y, net, label }
@@ -79,8 +84,10 @@ function init() {
   el("rect", { x: 170, y: U + 120, width: 150, height: 36, rx: 3, class: "uno-chip" }, gBoard);
   el("text", { x: 245, y: U + 143, class: "uno-chip-label" }, gBoard).textContent = "ATmega328P";
   el("text", { x: 110, y: U + 100, class: "uno-name" }, gBoard).textContent = "UNO";
-  el("rect", { x: 104, y: U + 6, width: 224, height: 18, rx: 2, class: "uno-header" }, gBoard);
-  el("rect", { x: 136, y: U + UNO.h - 24, width: 192, height: 18, rx: 2, class: "uno-header" }, gBoard);
+  el("rect", { x: 56, y: U + 6, width: 160, height: 18, rx: 2, class: "uno-header" }, gBoard);
+  el("rect", { x: 232, y: U + 6, width: 128, height: 18, rx: 2, class: "uno-header" }, gBoard);
+  el("rect", { x: 88, y: U + UNO.h - 24, width: 112, height: 18, rx: 2, class: "uno-header" }, gBoard);
+  el("rect", { x: 232, y: U + UNO.h - 24, width: 96, height: 18, rx: 2, class: "uno-header" }, gBoard);
   const builtinLed = el("rect", { x: 124, y: U + 48, width: 10, height: 6, rx: 1, class: "uno-led" }, gBoard);
   el("text", { x: 140, y: U + 55, class: "uno-small" }, gBoard).textContent = "L";
 
@@ -88,12 +95,18 @@ function init() {
     const id = `pin:${name}:${i}`;
     terms.set(id, { x, y, net: name, label: `UNO ${name}` });
     el("rect", { x: x - 5, y: y - 5, width: 10, height: 10, class: "term pin", "data-term": id }, gBoard);
-    const t = el("text", { x, y: labelBelow ? y + 20 : y - 11, class: "pin-label" }, gBoard);
-    t.textContent = name.replace(/^D/, "");
+    const text = PIN_TEXT[name] || name.replace(/^D/, "");
+    if (text.length > 3) {   // long names stand upright, like the print on a real board
+      const ty = labelBelow ? y + 10 : y - 10;
+      el("text", { x: x + 3, y: ty, class: "pin-label vertical", transform: `rotate(${labelBelow ? 90 : -90} ${x + 3} ${ty})` }, gBoard).textContent = text;
+    } else {
+      el("text", { x, y: labelBelow ? y + 20 : y - 11, class: "pin-label" }, gBoard).textContent = text;
+    }
   };
   TOP.forEach(([n, x], i) => addPin(n, x, U + 15, true, i));
   BOTTOM.forEach(([n, x], i) => addPin(n, x, U + UNO.h - 15, false, 100 + i));
-  el("text", { x: 216, y: U + 50, class: "uno-small" }, gBoard).textContent = "DIGITAL";
+  el("text", { x: 236, y: U + 58, class: "uno-small" }, gBoard).textContent = "DIGITAL";
+  el("text", { x: 100, y: U + UNO.h - 64, class: "uno-small" }, gBoard).textContent = "POWER";
   el("text", { x: 280, y: U + UNO.h - 44, class: "uno-small" }, gBoard).textContent = "ANALOG IN";
   el("text", { x: 20, y: 40, class: "tray-label" }, gBoard).textContent = "Parts:";
 
@@ -161,8 +174,9 @@ function init() {
       } else if (RES[p.kind]) {
         const r = RES[p.kind];
         el("line", { x1: 0, y1: 0, x2: span, y2: 0, class: "lead" }, g);
-        el("rect", { x: 22, y: -7, width: 36, height: 14, rx: 6, class: "res-body" }, g);
-        [...r.bands, "#c9a227"].forEach((c, i) => el("rect", { x: 28 + i * 7, y: -7, width: 3.5, height: 14, fill: c }, g));
+        el("rect", { x: 20, y: -7, width: 40, height: 14, rx: 6, class: "res-body" }, g);
+        r.bands.forEach((c, i) => el("rect", { x: 25 + i * 6, y: -7, width: 3.5, height: 14, fill: BAND[c] }, g));
+        el("rect", { x: 52, y: -7, width: 3.5, height: 14, fill: BAND.brown }, g);   // tolerance, set apart
         el("text", { x: 40, y: -11, class: "part-label" }, g).textContent = r.label;
       } else if (p.kind === "thm") {
         el("polyline", { points: `0,0 14,-6 26,-6 ${span},0`, class: "lead", fill: "none" }, g);
@@ -306,7 +320,7 @@ function init() {
   /** Judge every part. level(name) gives "H", "L" or null for 5V, GND and D2-D13. */
   function evaluate(level) {
     const find = nets();
-    const sources = ["5V", "GND", ...Array.from({ length: 12 }, (_, i) => `D${i + 2}`)];
+    const sources = ["5V", "3V3", "GND", ...Array.from({ length: 12 }, (_, i) => `D${i + 2}`)];
     const pot = new Map();
     const names = new Map();
     const addName = (s) => {
@@ -349,7 +363,7 @@ function init() {
           s.lit = (direct || withRes) && !shorts.length;
           s.noResistor = direct;
           s.reversed = !direct && !withRes && back;
-          const sig = (n) => nameIn(n, /^(D\d+|5V)$/);
+          const sig = (n) => nameIn(n, /^(D\d+|5V|3V3)$/);
           s.signal = sig(anode) || viaA.map(sig).find(Boolean) || sig(cathode) || viaK.map(sig).find(Boolean) || null;
           s.toGround = [anode, cathode, ...viaA, ...viaK].some((n) => has(n, "L"));
         }
@@ -440,7 +454,7 @@ function init() {
   let run = null;
 
   function pinLevel(name) {
-    if (name === "5V") return "H";
+    if (name === "5V" || name === "3V3") return "H";
     if (name === "GND") return "L";
     if (!run) return null;
     const n = Number(name.slice(1));
@@ -543,6 +557,10 @@ function init() {
     const add = (kind, text) => items.push([kind, text]);
     const s = evaluate((n) => (n === "GND" ? "L" : "H"));   // wiring judged as if every pin could be HIGH
     for (const grp of s.shorts) add("warn", `Short circuit: ${grp.filter((x) => x !== "GND").join(", ")} is wired straight to GND. On a real board this can damage the pin.`);
+    const used = new Set(wires.flatMap((w) => [terms.get(w.a).net, terms.get(w.b).net]));
+    if (used.has("D0") || used.has("D1")) add("warn", "Pins 0 and 1 carry the messages to the computer. Use pins 2 to 13 for your parts.");
+    if (used.has("RESET")) add("warn", "RESET restarts the board whenever it touches GND. Leave it unconnected.");
+    if (used.has("VIN") || used.has("IOREF") || used.has("AREF")) add("warn", "VIN, IOREF and AREF are not needed for these cards. Use 5V and GND for power.");
     const res = (k, why) => {
       if (parts[k] && !parts[k].legs && scenario.kinds.includes(k)) add("todo", `Put the ${NAMES[k]} on the breadboard${why ? ` (${why})` : ""}.`);
     };
@@ -664,7 +682,7 @@ function init() {
   // ------------------------------------------------------------------ wiring test
   /** A tiny program that switches every wired output together and reports the thermistor. */
   function wiringTest() {
-    const s = evaluate((n) => (n === "GND" ? "L" : "H"));
+    const s = evaluate((n) => (n === "GND" ? "L" : "H"));   // 3V3 and 5V are H too
     const digital = (p) => (p && /^D\d+$/.test(p) ? p : null);
     const t = {
       led: s.led && s.led.lit ? digital(s.led.signal) : null,
@@ -838,7 +856,7 @@ function init() {
   $("sim-delete").addEventListener("click", deleteSelected);
   function resetAll() {
     stop();
-    wires = []; pending = null; selected = null;
+    wires = []; pending = null; selected = null; paletteIdx = 0;
     resetParts();
     drawParts(); drawWires(); refresh(true);
   }
@@ -873,7 +891,7 @@ function init() {
     Object.assign(parts[k], { x: BBX + (col - 1) * STEP, y: ROW_Y[row], flipped });
     parts[k].legs = legTerms(parts[k]);
   };
-  const W = (a, b) => wires.push({ a, b, color: wireColor(a, b) });
+  const W = (a, b, color) => wires.push({ a, b, color: color || wireColor(a, b) });
   const example = $("sim-example");
   if (example) {
     example.addEventListener("click", () => {
@@ -883,21 +901,21 @@ function init() {
       if (parts.motor) {
         // D9 -> a3; 1k c3-c7; PN2222 e6 e7 e8 (E B C); motor d8-d10; diode b8-b10 (stripe on 10); a6 -> GND; a10 -> 5V
         place("r1k", 3, "c"); place("npn", 6, "e"); place("motor", 8, "d"); place("diode", 8, "b");
-        W("pin:D9:5", "bb:3:a"); W("bb:6:a", "rail:T-:6"); W("bb:10:a", "rail:T+:10");
+        W("pin:D9:5", "bb:3:a", "#c2a400"); W("bb:6:a", "rail:T-:6"); W("bb:10:a", "rail:T+:10");
       } else if (parts.led) {
         // D9 -> a5; LED c5(+) c6; 220 b6-b10; a10 -> GND
         place("led", 5, "c"); place("r220", 6, "b");
-        W("pin:D9:5", "bb:5:a"); W("bb:10:a", "rail:T-:10");
+        W("pin:D9:5", "bb:5:a", "#c2a400"); W("bb:10:a", "rail:T-:10");
       }
       if (parts.thm) {
         // 5V -> a14; thermistor c14-c16; 10k b16-b20; A0 -> a16; a20 -> GND
         place("thm", 14, "c"); place("r10k", 16, "b");
-        W("bb:14:a", "rail:T+:14"); W("pin:A0:103", "bb:16:a"); W("bb:20:a", "rail:T-:20");
+        W("bb:14:a", "rail:T+:14"); W("pin:A0:103", "bb:16:a", "#2f9e44"); W("bb:20:a", "rail:T-:20");
       }
       if (parts.buzzer) {
         // D8 -> a22; buzzer c22(+) c23; a23 -> GND
         place("buzzer", 22, "c");
-        W("pin:D8:6", "bb:22:a"); W("bb:23:a", "rail:T-:23");
+        W("pin:D8:6", "bb:22:a", "#1c7ed6"); W("bb:23:a", "rail:T-:23");
       }
       drawParts(); drawWires(); refresh(true);
       notifyChange();

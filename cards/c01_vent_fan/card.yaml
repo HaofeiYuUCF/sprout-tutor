@@ -24,6 +24,7 @@ parts:
   - {name: Jumper wire, qty: 6}
   - {name: USB cable, qty: 1}
 safety:
+  - Unplug the USB cable before you add, move or remove any part or wire.
   - Low-voltage DC only (5 V from USB). Never connect anything to mains power.
   - Never connect the motor straight to a pin. Always switch it through the transistor.
   - Keep fingers and hair away from the spinning fan blade.

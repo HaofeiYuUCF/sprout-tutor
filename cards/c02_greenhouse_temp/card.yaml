@@ -19,6 +19,7 @@ parts:
   - {name: Jumper wire, qty: 3}
   - {name: USB cable, qty: 1}
 safety:
+  - Unplug the USB cable before you add, move or remove any part or wire.
   - Low-voltage DC only (5 V from USB).
 tinkercad:
   note: Optional extra. Tinkercad Circuits has a TMP36 temperature sensor but no thermistor, so use the SPROUT simulator for this card.

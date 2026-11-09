@@ -254,6 +254,7 @@ details.advanced[open] { display: flex; flex-direction: column; gap: 8px; }
 .pin { paint-order: stroke; }
 .pin:hover, .hole:hover { fill: #ffd43b; }
 .pin-label { fill: #e8f4f6; font: 9px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
+.pin-label.vertical { text-anchor: start; font-size: 8px; }
 .bb { fill: #f1eee6; stroke: #cfcabd; }
 .bb-channel { fill: #e2ddd0; }
 .bb-label { fill: #8a8577; font: 10px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
@@ -270,9 +271,9 @@ details.advanced[open] { display: flex; flex-direction: column; gap: 8px; }
 .led-rim { fill: #7a1616; }
 .led-flat { stroke: #5c1010; stroke-width: 3; }
 .part.loose .led-rim { stroke: #e8862a; stroke-width: 2; }
-.led-plus { fill: var(--fg); font: 700 12px "Segoe UI", system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
-.res-body { fill: #d9c49a; stroke: #a8915f; }
-.res-label { fill: var(--fg); font: 10px "Segoe UI", system-ui, sans-serif; text-anchor: middle; }
+.led-plus { fill: #1d1d1d; stroke: rgba(255, 255, 255, 0.9); stroke-width: 3px; paint-order: stroke; font: 700 12px "Segoe UI", system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+.res-body { fill: #7fb2e0; stroke: #4f7fae; }   /* the kit's blue metal-film resistors */
+
 .tmp-body { fill: #2a2a2a; stroke: #111; }
 .tmp-label { fill: #ddd; font: 8px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
 .tmp-pin { fill: var(--muted); font: 8px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
@@ -282,8 +283,10 @@ details.advanced[open] { display: flex; flex-direction: column; gap: 8px; }
 .wire-end { pointer-events: none; }
 .rubber { stroke: #ffd43b; stroke-width: 2.5; stroke-dasharray: 5 4; }
 /* kit parts */
-.part-label, .pin-tag { fill: var(--fg); font: 9px "Segoe UI", system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
-.pin-tag { fill: var(--muted); font-family: "Cascadia Mono", Consolas, monospace; }
+/* labels on parts: dark text with a light outline, readable on the white breadboard and the dark tray */
+.part-label, .pin-tag { fill: #1d1d1d; stroke: rgba(255, 255, 255, 0.9); stroke-width: 3px; paint-order: stroke;
+  font: 600 10px "Segoe UI", system-ui, sans-serif; text-anchor: middle; pointer-events: none; }
+.pin-tag { font-family: "Cascadia Mono", Consolas, monospace; }
 .thm-bead { fill: #3a2c20; stroke: #1c140d; }
 .npn-body { fill: #2a2a2a; stroke: #111; }
 .npn-label { fill: #ddd; font: 8px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
@@ -298,3 +301,11 @@ details.advanced[open] { display: flex; flex-direction: column; gap: 8px; }
 .buzzer-body.on { stroke: #ffd43b; stroke-width: 2; }
 .buzzer-hole { fill: #444; }
 .buzz-wave { fill: none; stroke: #ffd43b; stroke-width: 2; stroke-linecap: round; pointer-events: none; }
+/* part picture cards */
+.part-gallery { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.part-card { margin: 0; display: flex; gap: 10px; align-items: flex-start; padding: 10px; border: 1px solid var(--line);
+  border-radius: 10px; background: var(--code-bg); }
+.part-pic { flex: none; width: 96px; height: 60px; border-radius: 6px; background: #f1eee6; display: grid; place-items: center; overflow: hidden; }
+.part-pic svg, .part-pic img { width: 100%; height: 100%; object-fit: contain; }
+.part-card figcaption { display: flex; flex-direction: column; gap: 3px; font-size: 13px; min-width: 0; }
+.part-card figcaption span { color: var(--muted); }

@@ -82,8 +82,9 @@
         <p id="card-ag"></p>
         <div class="facts">
           <div><span class="label">You will learn to</span><ul id="card-objectives"></ul></div>
-          <div><span class="label">Parts in your kit</span><ul id="card-parts"></ul></div>
         </div>
+        <span class="label">Find these parts in your kit</span>
+        <div id="card-parts" class="part-gallery"></div>
         <ul id="card-safety" class="safety"></ul>
       </section>
 
@@ -173,7 +174,7 @@
           <strong>Microsoft Edge</strong> on a laptop or Chromebook.
         </section>
         <ol class="wizard">
-          <li><div class="body"><b>Plug your UNO into the computer</b><span class="muted">Use the USB cable from your kit. A green light on the board turns on.</span></div></li>
+          <li><div class="body"><b>Plug your UNO into the computer</b><span class="muted">Only once the circuit is built. Use the USB cable from your kit; a green light on the board turns on. <b>Unplug it again before you change any wire or part.</b></span></div></li>
           <li><div class="body"><b>Connect</b>
             <span class="muted">A list opens. Choose the line that says <b>Arduino Uno</b>, then click <b>Connect</b>.</span>
             <div class="actions"><button id="btn-connect">Connect my board</button><button id="btn-disconnect" class="small" disabled>Disconnect</button></div>
@@ -235,6 +236,7 @@
 </aside>
 
 <script src="/weblab/static/stk500.js"></script>
+<script src="/weblab/static/parts.js"></script>
 <script src="/weblab/static/weblab.js"></script>
 <script type="module" src="/weblab/static/sim.js"></script>
 </body>
