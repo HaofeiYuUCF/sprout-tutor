@@ -99,6 +99,14 @@ class WebTutor:
         lr.tutor.logger.log("card_open", card_id=card.id, card_version=card.card.version,
                             detail={"client": "weblab"})
 
+    def leave_card(self, learner_id: object, card_id: object, code: object, changed: bool) -> None:
+        """The student went back to the card list, discarding their code (logged for evaluation)."""
+        lr, card = self._learner(learner_id), self._card(card_id)
+        lr.tutor.logger.log("card_leave", card_id=card.id, card_version=card.card.version,
+                            code_hash=code_hash(code) if isinstance(code, str) else None,
+                            detail={"changed": bool(changed), "client": "weblab"})
+        lr.compile_result = lr.compiled_hash = lr.last_hash = None
+
     def record_compile(self, learner_id: object, card_id: object, code: str,
                        result: CompileResult) -> None:
         lr, card = self._learner(learner_id), self._card(card_id)

@@ -19,6 +19,7 @@
     serialLines: [],   // complete serial lines since the last upload (sent to the tutor)
     serialPartial: "",
     asking: false,
+    loadedCode: "",    // code as loaded, to tell whether the student changed anything
   };
 
   const LEARNER_ID = /^l_[a-z0-9]{3,12}$/;
@@ -271,6 +272,7 @@
     $("check-out").replaceChildren();
     $("hints").replaceChildren();
     $("question").value = "";
+    $("back-confirm").hidden = true;
     state.stepId = null;
     if (!card) {
       const buttons = Object.values(state.config.cards).map((c) => {
@@ -303,6 +305,26 @@
       return d;
     });
     $("card-steps").replaceChildren(...steps);
+  }
+
+  function goBack() {
+    const changed = $("code").value !== state.loadedCode;
+    if (state.cardId) {
+      postJson("/api/weblab/card_leave", { learner: state.learner, card_id: state.cardId,
+        code: $("code").value, changed }).catch(() => { /* logging is best-effort */ });
+    }
+    const sel = $("sketch");
+    sel.value = "hello";
+    sel.dispatchEvent(new Event("change"));
+  }
+
+  function askBack() {
+    if ($("code").value === state.loadedCode) {
+      goBack(); // nothing to lose
+      return;
+    }
+    $("back-confirm").hidden = false;
+    $("btn-stay").focus();
   }
 
   async function openCard() {
@@ -377,6 +399,7 @@
     const load = () => {
       const s = state.config.sketches.find((x) => x.id === sel.value);
       $("code").value = s ? s.code : "";
+      state.loadedCode = $("code").value;
       state.compiled = null;
       $("size").textContent = "";
       show($("compile-out"), []);
@@ -410,6 +433,9 @@
     $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; });
     $("btn-check").addEventListener("click", checkWork);
     $("btn-hint").addEventListener("click", askHint);
+    $("btn-back").addEventListener("click", askBack);
+    $("btn-discard").addEventListener("click", goBack);
+    $("btn-stay").addEventListener("click", () => { $("back-confirm").hidden = true; });
     $("baud").addEventListener("change", async () => {
       if (state.transport?.isOpen) {
         state.decoder = new TextDecoder();

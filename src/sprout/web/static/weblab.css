@@ -112,3 +112,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .picker { display: flex; flex-direction: column; gap: 6px; }
 .picker button { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; }
 .picker .stage { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.card-nav { display: flex; }
+.confirm { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 6px;
+  background: var(--warn-bg); color: var(--warn-fg); font-size: 13.5px; }
+button.danger { border-color: var(--err); color: var(--err); }

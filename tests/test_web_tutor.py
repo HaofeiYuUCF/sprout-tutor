@@ -70,6 +70,17 @@ def test_events_are_logged_per_learner(web, cards):
     assert [k for k in kinds if k != "session_start"][:2] == ["card_open", "upload"]
 
 
+def test_leaving_a_card_is_logged_and_clears_its_compile_result(web, cards):
+    ref = cards["c01_pump_light"].reference.read_text(encoding="utf-8")
+    web.record_compile("l_web6", "c01_pump_light", ref, CompileResult(True))
+    web.leave_card("l_web6", "c01_pump_light", ref, changed=True)
+    log = [json.loads(x) for x in web.tutors["l_web6"].logger.path.read_text(encoding="utf-8").splitlines()]
+    leave = next(e for e in log if e["event_type"] == "card_leave")
+    assert leave["detail"]["changed"] is True and leave["card_id"] == "c01_pump_light"
+    r = web.check("l_web6", "c01_pump_light", ref, [])
+    assert not next(x for x in r["results"] if x["id"] == "compiles")["passed"]
+
+
 @pytest.mark.parametrize("learner,card,code", [
     ("../../etc", "c01_pump_light", "x"),   # learner IDs become file names
     ("L_UPPER", "c01_pump_light", "x"),

@@ -144,6 +144,14 @@ def register(app: FastAPI, root: Path | None = None) -> None:
             return {"ok": True}
         return await tutor_call(request, act)
 
+    @app.post("/api/weblab/card_leave")
+    async def weblab_card_leave(request: Request):
+        def act(b):
+            tutor.leave_card(b.get("learner"), b.get("card_id"), b.get("code"),
+                             b.get("changed") is True)
+            return {"ok": True}
+        return await tutor_call(request, act)
+
     @app.post("/api/weblab/upload_done")
     async def weblab_upload_done(request: Request):
         def act(b):

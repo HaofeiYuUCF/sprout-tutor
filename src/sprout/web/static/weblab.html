@@ -34,6 +34,16 @@
         <div id="card-picker" class="picker"></div>
       </div>
       <div id="card-body" class="card-body" hidden>
+        <div class="card-nav">
+          <button id="btn-back" class="small">&larr; Back to cards</button>
+        </div>
+        <div id="back-confirm" class="confirm" role="alert" hidden>
+          <span>Leave this card? Your changes to the code will be discarded.</span>
+          <div class="actions">
+            <button id="btn-discard" class="small danger">Discard and go back</button>
+            <button id="btn-stay" class="small">Keep working</button>
+          </div>
+        </div>
         <h2 id="card-title"></h2>
         <p id="card-ag" class="ag"></p>
         <ul id="card-safety" class="safety"></ul>
