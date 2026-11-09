@@ -108,7 +108,8 @@
   <section class="panel sim" aria-label="Simulator">
     <div class="panel-head">
       <span class="label">Simulator</span>
-      <span class="muted">LED test &middot; no board needed</span>
+      <span id="sim-scenario" class="muted">LED test</span>
+      <span class="muted">&middot; no board needed</span>
       <span class="spacer"></span>
       <button id="sim-run" class="primary">Run in simulator</button>
       <button id="sim-stop" disabled>Stop</button>
@@ -116,11 +117,16 @@
       <button id="sim-reset">Reset</button>
       <button id="sim-example" hidden>Show example wiring</button>
     </div>
-    <p class="muted sim-help">Drag the LED and the resistor onto the breadboard. To add a wire, click a
-      pin or hole, then click another. Double-click the LED to flip it. Click a wire and press
-      Delete to remove it. The simulator runs the sketch in the editor.</p>
+    <p class="muted sim-help">The parts follow the card you choose. Drag them onto the breadboard. To add
+      a wire, click a pin or hole, then click another. Double-click the LED or the TMP36 to turn it
+      around. Click a wire and press Delete to remove it. The simulator runs the sketch in the editor.</p>
     <div class="sim-wrap"><svg id="sim-svg" viewBox="0 0 960 440" role="img"
       aria-label="Arduino UNO and breadboard"></svg></div>
+    <label id="sim-temp-box" class="sim-temp" hidden>
+      <span>Air temperature around the TMP36</span>
+      <input type="range" id="sim-temp" min="0" max="50" step="0.5" value="24">
+      <span id="sim-temp-val">24 °C</span>
+    </label>
     <div class="sim-bar"><span id="sim-status" class="muted"></span><span id="sim-hover" class="sim-hover"></span></div>
     <div class="sim-bottom">
       <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>

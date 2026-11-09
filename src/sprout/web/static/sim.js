@@ -1,6 +1,8 @@
 /* SPROUT Web Lab simulator (LED test): wire an LED on a breadboard and run the student's own
  * compiled program on an emulated ATmega328P (avr8js, MIT). Drawings and circuit logic are our own.
  *
+ * The parts follow the selected card (LED, 220 ohm resistor, TMP36), read from the card's parts list.
+ *
  * Circuit model: every pin and breadboard hole belongs to a base net (a breadboard column strip,
  * a power rail, or an UNO pin). Wires merge nets. The LED lights when its anode side reaches a
  * HIGH net and its cathode side a LOW net, directly or through the resistor. No analog physics:
@@ -9,6 +11,7 @@
 import {
   CPU, avrInstruction, AVRTimer, timer0Config, timer1Config, timer2Config,
   AVRIOPort, portBConfig, portCConfig, portDConfig, AVRUSART, usart0Config, PinState,
+  AVRADC, adcConfig,
 } from "./vendor/avr8js/index.js";
 
 const NS = "http://www.w3.org/2000/svg";
@@ -28,8 +31,10 @@ function init() {
     ["D8", 208], ["D7", 240], ["D6", 256], ["D5", 272], ["D4", 288], ["D3", 304], ["D2", 320]];
   const BOTTOM = [["5V", 144], ["GND", 160], ["GND", 176], ["A0", 240], ["A1", 256], ["A2", 272],
     ["A3", 288], ["A4", 304], ["A5", 320]];
-  const LEG = { led: STEP, res: STEP * 4 };   // distance between the two legs
-  const HOME = { led: { x: 70, y: 410 }, res: { x: 170, y: 410 } };
+  const LEGS = { led: [0, STEP], res: [0, STEP * 4], tmp: [0, STEP, STEP * 2] }; // leg x offsets
+  const SPAN = (k) => LEGS[k][LEGS[k].length - 1];
+  const HOME = { led: { x: 70, y: 410 }, res: { x: 140, y: 410 }, tmp: { x: 270, y: 410 } };
+  const NAMES = { led: "LED", res: "resistor", tmp: "TMP36" };
 
   const terms = new Map();   // id -> { x, y, net, label }
   const holeAt = new Map();  // "x,y" -> hole id (breadboard and rails only)
@@ -108,11 +113,14 @@ function init() {
   el("text", { x: 70, y: 352, class: "tray-label" }, gBoard).textContent = "Parts: drag onto the breadboard";
 
   // ------------------------------------------------------------------ parts
-  const parts = {
-    led: { kind: "led", ...HOME.led, flipped: false, legs: null, lit: false },
-    res: { kind: "res", ...HOME.res, legs: null },
-  };
-  const partEls = {};
+  let parts = {};
+  let partEls = {};
+  let scenario = { kinds: ["led", "res"], title: "LED test", cardId: null };
+
+  function resetParts() {
+    parts = {};
+    for (const k of scenario.kinds) parts[k] = { kind: k, ...HOME[k], flipped: false, legs: null, lit: false };
+  }
 
   function drawParts() {
     gParts.replaceChildren();
@@ -129,25 +137,36 @@ function init() {
         el("circle", { cx: STEP / 2, cy: 0, r: 10, class: `led-body${p.lit ? " lit" : ""}`,
           filter: p.lit ? "url(#sim-glow)" : "" }, g);
         el("text", { x: a + (a ? 12 : -12), y: 4, class: "led-plus" }, g).textContent = "+";
+      } else if (p.kind === "tmp") {
+        // TO-92 package seen from above: flat face toward the student. Legs: +Vs, Vout, GND.
+        // Flipped = turned around, so +Vs and GND swap (the classic "sensor gets hot" mistake).
+        const body = el("g", p.flipped ? { transform: `rotate(180 ${STEP} 0)` } : {}, g);
+        el("path", { d: "M-8,7 L48,7 L48,-1 A28,13 0 0 0 -8,-1 Z", class: "tmp-body" }, body);
+        el("text", { x: STEP, y: p.flipped ? 4 : 2, class: "tmp-label",
+          transform: p.flipped ? `rotate(180 ${STEP} 0)` : "" }, g).textContent = "TMP36";
+        const names = p.flipped ? ["GND", "Vout", "+Vs"] : ["+Vs", "Vout", "GND"];
+        names.forEach((n, i) => {
+          el("text", { x: LEGS.tmp[i], y: 21, class: "tmp-pin" }, g).textContent = n;
+        });
       } else {
-        el("line", { x1: 0, y1: 0, x2: LEG.res, y2: 0, class: "lead" }, g);
+        el("line", { x1: 0, y1: 0, x2: SPAN("res"), y2: 0, class: "lead" }, g);
         el("rect", { x: 22, y: -7, width: 36, height: 14, rx: 6, class: "res-body" }, g);
         [["#d22", 29], ["#d22", 36], ["#7a4a12", 43], ["#c9a227", 51]].forEach(([c, x]) =>
           el("rect", { x, y: -7, width: 3.5, height: 14, fill: c }, g));
         el("text", { x: 40, y: -12, class: "res-label" }, g).textContent = "220 Ω";
       }
-      if (p.kind === "res") for (const lx of [0, LEG.res]) el("circle", { cx: lx, cy: 0, r: 3, class: "leg-tip" }, g);
+      if (p.kind !== "led") for (const lx of LEGS[p.kind]) el("circle", { cx: lx, cy: 0, r: 3, class: "leg-tip" }, g);
       // Invisible hit area for dragging: only the part itself, so neighbouring holes stay clickable.
-      el("rect", { x: p.kind === "led" ? -6 : -6, y: -9, width: LEG[p.kind] + 12, height: 18,
+      el("rect", { x: p.kind === "tmp" ? -9 : -6, y: p.kind === "tmp" ? -13 : -9,
+        width: SPAN(p.kind) + (p.kind === "tmp" ? 18 : 12), height: p.kind === "tmp" ? 22 : 18,
         class: "part-hit" }, g);
       partEls[p.kind] = g;
     }
   }
 
   function legTerms(p, x = p.x, y = p.y) {
-    const t1 = holeAt.get(`${x},${y}`);
-    const t2 = holeAt.get(`${x + LEG[p.kind]},${y}`);
-    return t1 && t2 ? [t1, t2] : null;
+    const ids = LEGS[p.kind].map((dx) => holeAt.get(`${x + dx},${y}`));
+    return ids.every(Boolean) ? ids : null;
   }
 
   function snap(p) {
@@ -160,8 +179,8 @@ function init() {
     }
     if (best) {
       const legs = legTerms(p, best.x, best.y);
-      const other = Object.values(parts).find((q) => q !== p && q.legs);
-      const clash = legs && other && legs.some((id) => other.legs.includes(id));
+      const taken = Object.values(parts).filter((q) => q !== p && q.legs).flatMap((q) => q.legs);
+      const clash = legs && legs.some((id) => taken.includes(id));
       if (legs && !clash) {
         p.x = best.x; p.y = best.y; p.legs = legs;
         return;
@@ -234,18 +253,24 @@ function init() {
       if (!pot.has(r)) pot.set(r, new Set());
       pot.get(r).add(lv);
     }
+    for (let i = 0; i < 6; i++) {
+      const r = find(`A${i}`);
+      if (!names.has(r)) names.set(r, []);
+      names.get(r).push(`A${i}`);
+    }
     const potOf = (net) => pot.get(find(net)) || new Set();
     const shorts = [...pot.entries()].filter(([, s]) => s.has("H") && s.has("L")).map(([r]) => names.get(r));
 
     const led = parts.led, res = parts.res;
-    const out = { placed: !!led.legs, resPlaced: !!res.legs, shorts, lit: false, noResistor: false,
-      reversed: false, ledShorted: false, resShorted: false, signal: null, toGround: false };
-    if (!led.legs) return out;
+    const out = { placed: !!(led && led.legs), resPlaced: !!(res && res.legs), shorts, lit: false,
+      noResistor: false, reversed: false, ledShorted: false, resShorted: false, signal: null,
+      toGround: false, tmp: tmpState(find, names, potOf) };
+    if (!led || !led.legs) return out;
     const [l1, l2] = led.legs.map((t) => terms.get(t).net);
     const anode = find(led.flipped ? l2 : l1), cathode = find(led.flipped ? l1 : l2);
     if (anode === cathode) { out.ledShorted = true; return out; }
     let r1 = null, r2 = null;
-    if (res.legs) {
+    if (res && res.legs) {
       [r1, r2] = res.legs.map((t) => find(terms.get(t).net));
       if (r1 === r2) { out.resShorted = true; r1 = r2 = null; }
     }
@@ -263,6 +288,33 @@ function init() {
     out.signal = srcName(anode) || srcName(via(anode)) || srcName(cathode) || srcName(via(cathode));
     out.toGround = has(cathode, "L") || has(via(cathode), "L") || has(anode, "L") || has(via(anode), "L");
     return out;
+  }
+
+  /** TMP36: is it powered the right way round, and which analog pin does Vout reach? */
+  function tmpState(find, names, potOf) {
+    const t = parts.tmp;
+    if (!t) return null;
+    const st = { placed: !!t.legs, powered: false, reversed: false, vs5v: false, gnd: false,
+      outPin: null, outChannel: null, volts: 0 };
+    if (!t.legs) return st;
+    const [n0, n1, n2] = t.legs.map((id) => find(terms.get(id).net));
+    const vs = t.flipped ? n2 : n0, gnd = t.flipped ? n0 : n2;
+    const has5V = (n) => (names.get(n) || []).includes("5V");
+    const hasGND = (n) => (names.get(n) || []).includes("GND");
+    st.vs5v = has5V(vs);
+    st.gnd = hasGND(gnd);
+    st.powered = st.vs5v && st.gnd;
+    st.reversed = hasGND(vs) && has5V(gnd);
+    st.outPin = (names.get(n1) || []).find((x) => /^A\d$/.test(x)) || null;
+    st.outChannel = st.outPin ? Number(st.outPin.slice(1)) : null;
+    // TMP36: 10 mV per degree C with a 500 mV offset. Reversed, it heats up and reads near the top.
+    st.volts = st.powered ? 0.5 + temperature() / 100 : st.reversed ? 4.4 : 0;
+    return st;
+  }
+
+  function temperature() {
+    const s = $("sim-temp");
+    return s ? Number(s.value) : 24;
   }
 
   // ------------------------------------------------------------------ emulator
@@ -304,8 +356,14 @@ function init() {
     const portC = new AVRIOPort(cpu, portCConfig);
     const portD = new AVRIOPort(cpu, portDConfig);
     const usart = new AVRUSART(cpu, usart0Config, 16e6);
-    run = { cpu, portB, portC, portD, usart, driven: new Set(), startedAt: performance.now(),
-      last: performance.now(), speed: 1 };
+    const adc = new AVRADC(cpu, adcConfig);
+    run = { cpu, portB, portC, portD, usart, adc, driven: new Set(), adcRead: new Set(),
+      startedAt: performance.now(), last: performance.now(), speed: 1 };
+    const readChannel = adc.onADCRead;
+    adc.onADCRead = (input) => {
+      if (typeof input.channel === "number") run.adcRead.add(input.channel);
+      readChannel(input);
+    };
     usart.onByteTransmit = (b) => {
       const ch = String.fromCharCode(b);
       const pre = $("sim-serial");
@@ -336,8 +394,17 @@ function init() {
     const want = ms * 16000;
     if (want > 0) run.speed = 0.9 * run.speed + 0.1 * Math.min(1, (run.cpu.cycles - begin) / want);
     for (let n = 2; n <= 13; n++) if (pinLevel(`D${n}`) === "H") run.driven.add(`D${n}`);
+    setAnalogInputs();
     refresh();
     run.raf = setTimeout(() => frame(performance.now()), 16); // timers keep running when the pane is not painted
+  }
+
+  /** Feed the TMP36 voltage to its analog pin; an unconnected analog pin reads near 0 V. */
+  function setAnalogInputs() {
+    if (!run) return;
+    const t = evaluate(pinLevel).tmp;
+    for (let ch = 0; ch < 6; ch++) run.adc.channelValues[ch] = Math.random() * 0.02;
+    if (t && t.outChannel !== null) run.adc.channelValues[t.outChannel] = t.volts + (Math.random() - 0.5) * 0.004;
   }
 
   function stop() {
@@ -356,14 +423,32 @@ function init() {
     const add = (kind, text) => items.push([kind, text]);
     // Wiring judged as if every digital pin could be HIGH.
     const s = evaluate((n) => (n === "GND" ? "L" : "H"));
-    if (!s.placed) add("todo", "Put the LED on the breadboard (both legs in holes).");
-    else if (s.ledShorted) add("warn", "Both LED legs are in the same column strip, so the LED is bypassed. Move one leg to another column.");
-    if (!s.resPlaced) add("todo", "Put the 220 Ω resistor on the breadboard.");
-    else if (s.resShorted) add("warn", "Both resistor legs are in the same column strip, so it does nothing. Spread it across columns.");
+    const hasLed = !!parts.led;
+    if (hasLed && !s.placed) add("todo", "Put the LED on the breadboard (both legs in holes).");
+    else if (hasLed && s.ledShorted) add("warn", "Both LED legs are in the same column strip, so the LED is bypassed. Move one leg to another column.");
+    if (parts.res && !s.resPlaced) add("todo", "Put the 220 Ω resistor on the breadboard.");
+    else if (parts.res && s.resShorted) add("warn", "Both resistor legs are in the same column strip, so it does nothing. Spread it across columns.");
+    const t = s.tmp;
+    if (t) {
+      if (!t.placed) add("todo", "Put the TMP36 on the breadboard: three legs in three columns, flat side facing you.");
+      else if (t.reversed) add("warn", "The TMP36 is backwards: 5V and GND are swapped. A real sensor gets hot, so unplug USB at once. Double-click it to turn it around.");
+      else {
+        if (!t.vs5v) add("todo", "Connect the TMP36's left leg (+Vs) to 5V.");
+        if (!t.gnd) add("todo", "Connect the TMP36's right leg (GND) to GND.");
+        if (!t.outPin) add("todo", "Connect the TMP36's middle leg (Vout) to an analog pin, for example A0.");
+        if (t.powered && t.outPin) {
+          add("ok", `TMP36 powered; Vout → ${t.outPin} reads about ${t.volts.toFixed(2)} V at ${temperature()} °C.`);
+        }
+      }
+      if (run && t.outChannel !== null && performance.now() - run.startedAt > 2500 && run.adcRead.size &&
+          !run.adcRead.has(t.outChannel)) {
+        add("warn", `Your code reads ${[...run.adcRead].map((c) => `A${c}`).join(", ")}, but the sensor's Vout is wired to ${t.outPin}.`);
+      }
+    }
     for (const grp of s.shorts) {
       add("warn", `Short circuit: ${grp.filter((x) => x !== "GND").join(", ")} is wired straight to GND. On a real board this can damage the pin.`);
     }
-    if (s.placed && !s.ledShorted && !s.shorts.length) {
+    if (hasLed && s.placed && !s.ledShorted && !s.shorts.length) {
       if (s.reversed) add("warn", "The LED is backwards. The long leg (+) must face the pin side. Double-click the LED to flip it.");
       else if (s.lit && s.noResistor) add("warn", `The LED is wired from ${s.signal} to GND without the resistor. On a real board this could burn out the LED.`);
       else if (s.lit) add("ok", `Circuit complete: ${s.signal} → LED and resistor → GND. The LED lights when ${s.signal} is HIGH.`);
@@ -389,7 +474,7 @@ function init() {
   let lastFeedback = 0;
   function refresh(force = false) {
     const live = evaluate(pinLevel);
-    if (parts.led.lit !== live.lit) {
+    if (parts.led && parts.led.lit !== live.lit) {
       parts.led.lit = live.lit;
       drawParts();
     }
@@ -474,9 +559,10 @@ function init() {
   });
 
   svg.addEventListener("dblclick", (ev) => {
-    const partEl = ev.target.closest("[data-part='led']");
+    const partEl = ev.target.closest("[data-part='led'], [data-part='tmp']");
     if (!partEl) return;
-    parts.led.flipped = !parts.led.flipped;
+    const p = parts[partEl.dataset.part];
+    p.flipped = !p.flipped;
     drawParts();
     refresh(true);
   });
@@ -516,31 +602,65 @@ function init() {
   $("sim-run").addEventListener("click", start);
   $("sim-stop").addEventListener("click", stop);
   $("sim-delete").addEventListener("click", deleteSelected);
-  $("sim-reset").addEventListener("click", () => {
+  function resetAll() {
+    stop();
     wires = []; pending = null; selected = null;
-    Object.assign(parts.led, HOME.led, { legs: null, flipped: false });
-    Object.assign(parts.res, HOME.res, { legs: null });
+    resetParts();
     drawParts(); drawWires(); refresh(true);
+  }
+  $("sim-reset").addEventListener("click", resetAll);
+
+  /** Switch the parts to match a card ({cardId, title, parts: ["1 × TMP36 temperature sensor", ...]}). */
+  function setScenario(card) {
+    const list = (card && card.parts) || [];
+    const kinds = [];
+    if (list.some((x) => /TMP36/i.test(x))) kinds.push("tmp");
+    if (list.some((x) => /\bLED\b/i.test(x))) kinds.push("led");
+    if (list.some((x) => /resistor/i.test(x))) kinds.push("res");
+    scenario = kinds.length
+      ? { kinds, title: card.title, cardId: card.cardId }
+      : { kinds: ["led", "res"], title: "LED test", cardId: null };
+    $("sim-scenario").textContent = `${scenario.title} · parts: ${scenario.kinds.map((k) => NAMES[k]).join(", ")}`;
+    $("sim-temp-box").hidden = !scenario.kinds.includes("tmp");
+    resetAll();
+  }
+  document.addEventListener("sprout:card", (ev) => setScenario(ev.detail));
+  $("sim-temp").addEventListener("input", () => {
+    $("sim-temp-val").textContent = `${temperature()} °C`;
+    refresh(true);
   });
   const example = $("sim-example");
   if (example) {
     example.addEventListener("click", () => {
-      // The card c01 circuit: D8 → a5; LED c5(+) / c6; resistor b6–b10; a10 → top − rail; GND → rail.
-      wires = [{ a: "pin:D8:6", b: "bb:5:a", color: PALETTE[0] },
-        { a: "bb:10:a", b: "rail:T-:10", color: "#222" },
-        { a: "pin:GND:101", b: "rail:T-:2", color: "#222" }];
-      Object.assign(parts.led, { x: BBX + 4 * STEP, y: ROW_Y.c, flipped: false });
-      Object.assign(parts.res, { x: BBX + 5 * STEP, y: ROW_Y.b });
-      parts.led.legs = legTerms(parts.led);
-      parts.res.legs = legTerms(parts.res);
+      resetAll();
+      wires = [{ a: "pin:GND:101", b: "rail:T-:2", color: "#222" }];
+      if (parts.led) {
+        // D8 → a5; LED c5(+) / c6; resistor b6–b10; a10 → top − rail.
+        wires.push({ a: "pin:D8:6", b: "bb:5:a", color: PALETTE[0] },
+          { a: "bb:10:a", b: "rail:T-:10", color: "#222" });
+        Object.assign(parts.led, { x: BBX + 4 * STEP, y: ROW_Y.c, flipped: false });
+        parts.led.legs = legTerms(parts.led);
+        if (parts.res) {
+          Object.assign(parts.res, { x: BBX + 5 * STEP, y: ROW_Y.b });
+          parts.res.legs = legTerms(parts.res);
+        }
+      }
+      if (parts.tmp) {
+        // TMP36 in c14–c16: 5V → a14, A0 → a15, a16 → top − rail.
+        wires.push({ a: "pin:5V:100", b: "bb:14:a", color: "#d6336c" },
+          { a: "pin:A0:103", b: "bb:15:a", color: PALETTE[1] },
+          { a: "bb:16:a", b: "rail:T-:16", color: "#222" });
+        Object.assign(parts.tmp, { x: BBX + 13 * STEP, y: ROW_Y.c, flipped: false });
+        parts.tmp.legs = legTerms(parts.tmp);
+      }
       drawParts(); drawWires(); refresh(true);
     });
   }
 
   // test hook (read-only view of the circuit state)
   window.SproutSim = {
-    state: () => ({ wires: wires.map((w) => [w.a, w.b]), led: { ...parts.led }, res: { ...parts.res },
-      running: !!run, lit: parts.led.lit }),
+    state: () => ({ wires: wires.map((w) => [w.a, w.b]), kinds: scenario.kinds, running: !!run,
+      lit: !!(parts.led && parts.led.lit), tmp: parts.tmp ? { ...parts.tmp } : null }),
     evaluate: () => evaluate(pinLevel),
     place: (kind, holeId, flipped) => {
       const t = terms.get(holeId);
@@ -553,8 +673,6 @@ function init() {
     wire: (a, b) => { wires.push({ a, b, color: wireColor(a, b) }); drawWires(); refresh(true); },
   };
 
-  drawParts();
-  drawWires();
-  refresh(true);
-  setStatus("Press Run to start your program. Wire the LED while it runs or before.");
+  setScenario(window.SproutLab && window.SproutLab.currentCard ? window.SproutLab.currentCard() : null);
+  setStatus("Press Run to start your program. You can wire the parts before or while it runs.");
 }

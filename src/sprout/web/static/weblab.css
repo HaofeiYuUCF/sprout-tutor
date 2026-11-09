@@ -171,3 +171,9 @@ button.danger { border-color: var(--err); color: var(--err); }
 .rubber { stroke: #ffd43b; stroke-width: 2.5; stroke-dasharray: 5 4; }
 .led-flat { stroke: #5c1010; stroke-width: 3; }
 .part.loose .led-rim { stroke: #e8862a; stroke-width: 2; }
+.sim-temp { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
+.sim-temp input { flex: 1; min-width: 160px; max-width: 360px; accent-color: var(--accent); }
+#sim-temp-val { font-family: "Cascadia Mono", Consolas, monospace; min-width: 5ch; }
+.tmp-body { fill: #2a2a2a; stroke: #111; }
+.tmp-label { fill: #ddd; font: 8px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }
+.tmp-pin { fill: var(--muted); font: 8px "Cascadia Mono", Consolas, monospace; text-anchor: middle; pointer-events: none; }

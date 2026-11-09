@@ -384,7 +384,13 @@
     compile: () => compile(),                 // { hex, ... } or null (errors shown under the editor)
     resetSerial: () => { state.serialLines = []; state.serialPartial = ""; },
     feedSerial: (text) => collectSerial(text), // simulated output also counts for Check my work
+    currentCard: () => simCard(),
   };
+
+  function simCard() {
+    const card = state.cardId ? state.config.cards[state.cardId] : null;
+    return card ? { cardId: card.id, title: card.title, parts: card.parts } : null;
+  }
 
   // ---------- start ----------
   async function init() {
@@ -412,10 +418,12 @@
       $("size").textContent = "";
       show($("compile-out"), []);
       const cardId = s ? s.card_id : null;
-      if (cardId !== state.cardId || cardId) {
+      const cardChanged = cardId !== state.cardId;
+      if (cardChanged || cardId) {
         state.cardId = cardId;
         openCard();
       }
+      if (cardChanged) document.dispatchEvent(new CustomEvent("sprout:card", { detail: simCard() }));
     };
     sel.addEventListener("change", load);
     renderCard(); // draw the card picker before any card is chosen
