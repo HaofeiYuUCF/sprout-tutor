@@ -52,3 +52,18 @@ evaluator. Photos and answer keys never enter the repository. API keys live only
 - The first AVR compile is slow under Defender; consider excluding `tools/`.
 - Port 8080 busy? Set `SPROUT_UI_PORT`.
 - Keep the repository outside OneDrive to avoid sync locks on build files.
+
+## Web Lab (feasibility test, this computer only)
+
+Tests whether a no-install web version can work: the server compiles, and the browser uploads
+to the UNO over Web Serial (Chrome or Edge only). Nothing is open to other machines.
+
+1. Close the Arduino IDE. Keep `board.mode: fake` so the desktop workbench does not hold the COM port.
+2. Run `.venv\Scripts\sprout run`, then open **http://localhost:8080/weblab** in Chrome or Edge.
+3. Plug in the UNO, then: Connect board → choose the port → Upload to board. The "Hello UNO" sketch
+   needs no parts: the "L" LED blinks and the serial monitor counts.
+4. Each upload is logged in `data/weblab/upload_trials.jsonl` (success, error type, time, USB chip
+   ID; no names or code), for the reliability numbers.
+
+Uploader tests without a board: start with `SPROUT_WEBLAB_TEST=1`, then open
+http://localhost:8080/weblab/test/stk500_test.html (simulated bootloader, 12 checks).

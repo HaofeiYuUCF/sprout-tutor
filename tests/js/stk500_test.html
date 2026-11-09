@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Web Lab uploader tests</title>
+<style>body{font:14px Consolas,monospace;margin:16px} .pass{color:green} .fail{color:#b3261e}</style>
+</head>
+<body>
+<h1>Web Lab uploader tests</h1>
+<p>Run with <code>SPROUT_WEBLAB_TEST=1 sprout run</code>, then open
+<code>http://127.0.0.1:8080/weblab/test/stk500_test.html</code>. No board needed.</p>
+<pre id="results">running…</pre>
+<script src="/weblab/static/stk500.js"></script>
+<script src="/weblab/test/fake_optiboot.js"></script>
+<script>
+(async () => {
+  const { parseIntelHex, Stk500Uploader, UploadError } = window.SproutUpload;
+  const results = [];
+  const test = async (name, fn) => {
+    try { await fn(); results.push([true, name]); }
+    catch (e) { results.push([false, `${name}: ${e.message}`]); }
+  };
+  const assert = (cond, msg) => { if (!cond) throw new Error(msg || "assertion failed"); };
+  const expectCode = async (promise, code) => {
+    try { await promise; } catch (e) {
+      assert(e instanceof UploadError, `expected UploadError, got ${e}`);
+      assert(e.code === code, `expected ${code}, got ${e.code} (${e.message})`);
+      return;
+    }
+    throw new Error(`expected failure ${code}, but it succeeded`);
+  };
+  const randomImage = (n) => Uint8Array.from({ length: n }, (_, i) => (i * 37 + 11) & 0xff);
+  const quick = (fake, extra = {}) => new Stk500Uploader(fake, Object.assign({ syncAttempts: 5 }, extra));
+
+  await test("parseIntelHex reads data records and fills gaps with 0xFF", async () => {
+    const hex = ":0400000001020304F2\n:02000600AABB93\n:00000001FF\n";
+    const img = parseIntelHex(hex);
+    assert(img.length === 8, `length ${img.length}`);
+    assert([...img].join(",") === "1,2,3,4,255,255,170,187", [...img].join(","));
+  });
+  await test("parseIntelHex rejects a bad checksum", async () => {
+    await expectCode(Promise.resolve().then(() => parseIntelHex(":0400000001020304F3\n:00000001FF")), "bad_hex");
+  });
+  await test("parseIntelHex rejects a file without an end record", async () => {
+    await expectCode(Promise.resolve().then(() => parseIntelHex(":0400000001020304F2\n")), "bad_hex");
+  });
+  await test("upload writes, verifies and starts the sketch (odd size, partial last page)", async () => {
+    const fake = new FakeOptiboot();
+    const img = randomImage(5001);
+    const progress = [];
+    const r = await quick(fake, { onProgress: (p) => progress.push(p) }).upload(img);
+    assert(r.bytes === 5001 && r.pages === 40, JSON.stringify(r));
+    for (let i = 0; i < img.length; i++) assert(fake.flash[i] === img[i], `byte ${i}`);
+    assert(fake.flash[5001] === 0xff, "padding is 0xFF");
+    assert(fake.started, "sketch started after leaving programming mode");
+    const last = progress[progress.length - 1];
+    assert(last.phase === "verify" && last.done === last.total, "progress reached 100%");
+  });
+  await test("stale serial output from the old sketch does not break sync", async () => {
+    const fake = new FakeOptiboot({ staleOutput: "count=41\r\ncount=42\r\n" });
+    await quick(fake).upload(randomImage(300));
+    assert(fake.started);
+  });
+  await test("a bootloader that is slow to start is retried until in sync", async () => {
+    const fake = new FakeOptiboot({ ignoreFirstSyncs: 2 });
+    const r = await quick(fake).upload(randomImage(300));
+    assert(r.syncAttempts === 3, `attempts ${r.syncAttempts}`);
+  });
+  await test("board drops to the old sketch mid-handshake: reset again and succeed", async () => {
+    const fake = new FakeOptiboot({ dropToAppOnce: true });
+    const img = randomImage(700);
+    const r = await quick(fake).upload(img);
+    assert(r.handshakes === 2, `handshakes ${r.handshakes}`);
+    for (let i = 0; i < img.length; i++) assert(fake.flash[i] === img[i], `byte ${i}`);
+  });
+  await test("no bootloader answering gives no_sync", async () => {
+    await expectCode(quick(new FakeOptiboot({ alive: false })).upload(randomImage(300)), "no_sync");
+  });
+  await test("a different chip gives wrong_chip and writes nothing", async () => {
+    const fake = new FakeOptiboot({ signature: [0x1e, 0x98, 0x01] });
+    await expectCode(quick(fake).upload(randomImage(300)), "wrong_chip");
+    assert(fake.flash[0] === 0xff, "flash untouched");
+  });
+  await test("a corrupted byte is caught by verification", async () => {
+    const fake = new FakeOptiboot({ flipBitAt: 1000 });
+    await expectCode(quick(fake).upload(randomImage(3000)), "verify_failed");
+    assert(!fake.started, "sketch not started after a failed verify");
+  });
+  await test("a program larger than the UNO's flash is refused before touching the board", async () => {
+    const fake = new FakeOptiboot();
+    await expectCode(quick(fake).upload(randomImage(32257)), "too_big");
+    assert(fake.commands.length === 0, "no commands sent");
+  });
+  await test("end to end: server compiles the hello sketch, upload to the simulated UNO matches", async () => {
+    const cfg = await (await fetch("/api/weblab/config")).json();
+    const hello = cfg.sketches.find((s) => s.id === "hello");
+    const r = await (await fetch("/api/weblab/compile", { method: "POST",
+      headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: hello.code }) })).json();
+    assert(r.ok, JSON.stringify(r.errors));
+    const img = parseIntelHex(r.hex);
+    assert(img.length === r.flash_bytes, `image ${img.length} vs reported ${r.flash_bytes}`);
+    const fake = new FakeOptiboot();
+    await quick(fake).upload(img);
+    for (let i = 0; i < img.length; i++) assert(fake.flash[i] === img[i], `byte ${i}`);
+  });
+  await test("compile errors come back with line numbers", async () => {
+    const r = await (await fetch("/api/weblab/compile", { method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: "void setup() {\n  pinMode(13, OUTPUT)\n}\nvoid loop() {}\n" }) })).json();
+    assert(!r.ok && r.errors.length && r.errors[0].line > 0, JSON.stringify(r.errors));
+  });
+
+  const passed = results.filter((x) => x[0]).length;
+  const el = document.getElementById("results");
+  el.innerHTML = "";
+  const head = document.createElement("div");
+  head.textContent = `${passed}/${results.length} passed`;
+  head.className = passed === results.length ? "pass" : "fail";
+  el.appendChild(head);
+  for (const [ok, name] of results) {
+    const d = document.createElement("div");
+    d.className = ok ? "pass" : "fail";
+    d.textContent = `${ok ? "PASS" : "FAIL"}  ${name}`;
+    el.appendChild(d);
+  }
+  window.__testResults = { passed, total: results.length, results };
+})();
+</script>
+</body>
+</html>

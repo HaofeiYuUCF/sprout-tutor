@@ -34,6 +34,8 @@ class CompileResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
     raw_error: str = ""
     duration_s: float = 0.0
+    flash_bytes: int | None = None  # program size, from arduino-cli's size report
+    flash_max: int | None = None
 
     @property
     def errors(self) -> list[Diagnostic]:
@@ -93,9 +95,11 @@ class ArduinoCliBoard:
                     continue
         return {}
 
-    def compile(self, sketch_dir: Path) -> CompileResult:
+    def compile(self, sketch_dir: Path, output_dir: Path | None = None) -> CompileResult:
+        """Compile; with output_dir, arduino-cli also copies <sketch>.ino.hex there (web upload)."""
         t0 = time.time()
-        proc = self._run(["compile", "--fqbn", self.fqbn, "--format", "json", str(sketch_dir)])
+        extra = ["--output-dir", str(output_dir)] if output_dir else []
+        proc = self._run(["compile", "--fqbn", self.fqbn, "--format", "json", *extra, str(sketch_dir)])
         data = self._json(proc)
         ok = bool(data.get("success", proc.returncode == 0))
         # arduino-cli 1.x: compiler messages in compiler_err; tool failures (sketch not found,
@@ -109,7 +113,10 @@ class ArduinoCliBoard:
             diags.append(Diagnostic(Path(str(d.get("file", ""))).name, int(d.get("line") or 0),
                                     d.get("column"), str(d.get("severity", "error")).lower(),
                                     message))
-        return CompileResult(ok, diags or parse_diagnostics(err_text), err_text, time.time() - t0)
+        flash = next((x for x in (data.get("builder_result") or {}).get("executable_sections_size") or []
+                      if x.get("name") == "text"), {})
+        return CompileResult(ok, diags or parse_diagnostics(err_text), err_text, time.time() - t0,
+                             flash.get("size"), flash.get("max_size"))
 
     def upload(self, sketch_dir: Path) -> UploadResult:
         if not self.broker:

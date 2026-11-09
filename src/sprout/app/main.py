@@ -13,6 +13,7 @@ from nicegui import app, ui
 
 from ..config import load_settings
 from ..runtime import build_board, build_tutor
+from ..web.routes import register as register_weblab
 from .workbench import Session, build_page
 
 LEARNER_ID = re.compile(r"^l_[a-z0-9]{3,12}$")
@@ -47,5 +48,6 @@ def _shutdown() -> None:
 def main() -> None:
     s = load_settings()
     app.on_shutdown(_shutdown)
+    register_weblab(app)  # /weblab: browser-upload feasibility test
     ui.run(host="127.0.0.1", port=s.ui.port, reload=False, title="SPROUT workbench",
            show=os.environ.get("SPROUT_UI_SHOW", "1") == "1")

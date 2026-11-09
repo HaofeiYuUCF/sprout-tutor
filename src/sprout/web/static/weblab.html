@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SPROUT Web Lab</title>
+<link rel="stylesheet" href="/weblab/static/weblab.css">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">SPROUT <span>Web Lab</span></div>
+  <div class="tag">Test build &middot; this computer only</div>
+</header>
+
+<main>
+  <section id="unsupported" class="notice warn" hidden>
+    This browser cannot talk to USB boards. Open this page in <strong>Google Chrome</strong> or
+    <strong>Microsoft Edge</strong> on a laptop or Chromebook.
+  </section>
+  <section id="no-compiler" class="notice warn" hidden>
+    The server cannot compile yet: arduino-cli is missing. Run
+    <code>scripts\setup_arduino_cli.ps1</code> and restart <code>sprout run</code>.
+  </section>
+
+  <div class="grid">
+    <section class="panel editor">
+      <div class="panel-head">
+        <label for="sketch">Sketch</label>
+        <select id="sketch"></select>
+      </div>
+      <textarea id="code" spellcheck="false" autocomplete="off" aria-label="Sketch code"></textarea>
+      <div class="actions">
+        <button id="btn-compile">Compile</button>
+        <button id="btn-upload" class="primary" disabled>Upload to board</button>
+        <span id="size" class="muted"></span>
+      </div>
+      <div id="compile-out" class="out" aria-live="polite"></div>
+    </section>
+
+    <section class="panel board">
+      <div class="panel-head">
+        <span class="label">Board</span>
+        <span id="board-status" class="pill off">not connected</span>
+      </div>
+      <div class="actions">
+        <button id="btn-connect">Connect board</button>
+        <button id="btn-disconnect" disabled>Disconnect</button>
+        <label class="check"><input type="checkbox" id="all-ports"> show all ports</label>
+      </div>
+      <div class="progress" hidden><div id="bar"></div></div>
+      <div id="upload-out" class="out" aria-live="polite"></div>
+
+      <div class="panel-head monitor-head">
+        <span class="label">Serial monitor</span>
+        <span class="spacer"></span>
+        <select id="baud" aria-label="Baud rate">
+          <option>9600</option><option>19200</option><option>57600</option><option>115200</option>
+        </select>
+        <button id="btn-clear" class="small">Clear</button>
+      </div>
+      <pre id="monitor" class="monitor" aria-live="off"></pre>
+    </section>
+  </div>
+
+  <details class="panel log">
+    <summary>Upload trials this session <span id="trial-count" class="muted"></span></summary>
+    <p class="muted">Each upload is also saved on this computer in
+      <code>data/weblab/upload_trials.jsonl</code> (success, error type, time, USB chip ID; no
+      names or code).</p>
+    <table><thead><tr><th>#</th><th>Result</th><th>Time</th><th>Bytes</th><th>USB chip</th></tr></thead>
+      <tbody id="trials"></tbody></table>
+  </details>
+</main>
+
+<script src="/weblab/static/stk500.js"></script>
+<script src="/weblab/static/weblab.js"></script>
+</body>
+</html>
