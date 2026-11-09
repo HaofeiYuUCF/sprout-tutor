@@ -32,7 +32,7 @@ def load_settings(root: Path | None = None) -> Settings:
     settings = Settings.model_validate(_read_yaml(root / "config" / "settings.yaml"))
     if p := os.environ.get("SPROUT_LLM_PROVIDER"):
         if p not in ("mock", "anthropic"):
-            raise ValueError(f"SPROUT_LLM_PROVIDER must be 'mock' or 'anthropic', not {p!r}")
+            raise ValueError("SPROUT_LLM_PROVIDER must be 'mock' or 'anthropic'")   # never echo the value: it may be a misplaced key
         settings.llm.provider = p  # type: ignore[assignment]
     if p := os.environ.get("SPROUT_LLM_MODEL"):            # e.g. claude-sonnet-5-5, claude-opus-5-5
         settings.llm.model = p
