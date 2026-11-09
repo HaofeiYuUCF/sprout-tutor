@@ -121,12 +121,24 @@
   }
 
   // ---- sign in
-  function signIn(code) {
+  async function signIn(code, remembered = false) {
     const id = (code || "").trim().toLowerCase();
     if (!LEARNER_ID.test(id)) {
       $("signin-err").textContent = "That code does not look right. It starts with l_ and has 3 to 12 letters or numbers, like l_ab12.";
       $("signin-err").hidden = false;
       return;
+    }
+    if (state.config.roster_required) {   // on a class server, only codes on the class list work
+      try {
+        await postJson("/api/weblab/signin", { learner: id });
+      } catch (e) {
+        if (remembered) { store.del("sprout.learner"); showScreen("signin"); return; }
+        $("signin-err").textContent = /403/.test(e.message)
+          ? "This code is not on the class list. Check it with your instructor."
+          : `Could not sign in: ${e.message}`;
+        $("signin-err").hidden = false;
+        return;
+      }
     }
     state.learner = id;
     store.set("sprout.learner", id);
@@ -778,6 +790,16 @@
 
     $("signin-form").addEventListener("submit", (e) => { e.preventDefault(); signIn($("signin-code").value); });
     $("signin-demo").addEventListener("click", () => signIn("l_demo"));
+    $("signin-guest").hidden = !state.config.guest_allowed;
+    $("signin-guest").addEventListener("click", async () => {
+      try {
+        const g = await postJson("/api/weblab/guest", {});
+        await signIn(g.learner);
+      } catch (e) {
+        $("signin-err").textContent = `Guest access is not available right now (${e.message}).`;
+        $("signin-err").hidden = false;
+      }
+    });
     $("btn-switch").addEventListener("click", switchStudent);
     $("btn-warmup").addEventListener("click", openWarmup);
     $("btn-back").addEventListener("click", backToCards);
@@ -844,7 +866,7 @@
     const fromUrl = new URLSearchParams(location.search).get("learner");
     const remembered = store.get("sprout.learner");
     const id = fromUrl && LEARNER_ID.test(fromUrl) ? fromUrl : remembered && LEARNER_ID.test(remembered) ? remembered : null;
-    if (id) signIn(id);
+    if (id) await signIn(id, id === remembered && id !== fromUrl);
     else showScreen("signin");
   }
 

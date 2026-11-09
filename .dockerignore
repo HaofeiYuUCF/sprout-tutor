@@ -1,0 +1,14 @@
+# Keep secrets, student data and Windows tools out of the server image.
+.env
+.env.*
+data/
+tools/
+.venv/
+.git/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+eval/
+tests/
+*.tmp

@@ -24,28 +24,47 @@ from ..hardware.board import ArduinoCliBoard
 from ..hardware.ports import KNOWN
 from ..runtime import build_tutor
 from .compile_service import HELLO_SKETCH, CompileService, append_trial, clean_trial
+from .public import CappedLLM, DailyCap, RateLimiter, Roster, allowed_hosts, env_int, flag, public_mode
 from .tutor_api import BadRequest, WebTutor, card_view
 
 STATIC = Path(__file__).parent / "static"
 log = logging.getLogger("sprout.weblab")
-LOCAL_HOSTS = {"127.0.0.1", "localhost"}
 MAX_PHOTO_BYTES = 8_000_000
 SAFE_NAME = re.compile(r"^[a-z0-9_]{1,40}$")
 
 
 def is_local(request: Request) -> bool:
-    host = request.headers.get("host", "").rsplit(":", 1)[0].strip("[]")
+    """The request comes from this site's own pages: Host (and Origin, if sent) is localhost or a
+    host listed in SPROUT_ALLOWED_HOSTS. Stops DNS rebinding and cross-site requests."""
+    hosts = allowed_hosts()
+    host = request.headers.get("host", "").rsplit(":", 1)[0].strip("[]").lower()
     origin = request.headers.get("origin")
     if origin:
-        origin_host = origin.split("://", 1)[-1].rsplit(":", 1)[0]
-        if origin_host not in LOCAL_HOSTS:
+        origin_host = origin.split("://", 1)[-1].rsplit(":", 1)[0].lower()
+        if origin_host not in hosts:
             return False
-    return host in LOCAL_HOSTS
+    return host in hosts
+
+
+def client_key(request: Request) -> str:
+    """Client address for rate limits (behind the HTTPS proxy, the first X-Forwarded-For entry)."""
+    if flag("SPROUT_TRUST_PROXY"):
+        fwd = request.headers.get("x-forwarded-for", "")
+        if fwd:
+            return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+BUSY = "Too many requests in a short time. Wait a moment and try again."
+
+
+def too_many(message: str = BUSY) -> JSONResponse:
+    return JSONResponse({"error": message}, 429)
 
 
 def _guard(request: Request, json_body: bool = False) -> JSONResponse | None:
     if not is_local(request):
-        return JSONResponse({"error": "Web Lab accepts requests from this computer only."}, 403)
+        return JSONResponse({"error": "This site only answers requests from its own pages."}, 403)
     if json_body and not request.headers.get("content-type", "").startswith("application/json"):
         return JSONResponse({"error": "Send JSON."}, 415)
     return None
@@ -84,9 +103,25 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     d = data_dir(root)
     service = CompileService(board, d / "work" / "_weblab")
     trials = d / "weblab" / "upload_trials.jsonl"
-    test_mode = os.environ.get("SPROUT_WEBLAB_TEST") == "1"
+    public = public_mode()
+    test_mode = os.environ.get("SPROUT_WEBLAB_TEST") == "1" and not public   # never on a public site
+    photos = not public or flag("SPROUT_PHOTOS")
     cards = load_cards(root)
-    tutor = WebTutor(cards, lambda learner: build_tutor(learner, root), d)
+    roster = Roster(Path(os.environ.get("SPROUT_ROSTER") or d / "roster.txt"), d / "guests.txt",
+                    public, flag("SPROUT_GUEST"))
+    ai_cap = DailyCap(env_int("SPROUT_AI_PER_DAY", 30))
+
+    def make_tutor(learner: str):
+        t = build_tutor(learner, root)
+        if public:
+            t.llm = CappedLLM(t.llm, ai_cap, learner)   # curated hints never reach the LLM
+        return t
+
+    tutor = WebTutor(cards, make_tutor, d, allowed=roster.allowed)
+    compile_limit = RateLimiter(env_int("SPROUT_COMPILE_PER_MIN", 20), 60)
+    hint_limit = RateLimiter(env_int("SPROUT_HINT_PER_MIN", 10), 60)
+    api_limit = RateLimiter(env_int("SPROUT_API_PER_MIN", 300), 60)
+    guest_limit = RateLimiter(env_int("SPROUT_GUESTS_PER_HOUR", 10), 3600)
 
     app.add_static_files("/weblab/static", STATIC, max_cache_age=0)
     if test_mode:
@@ -96,6 +131,8 @@ def register(app: FastAPI, root: Path | None = None) -> None:
         """Guard, parse, run a WebTutor action in the thread pool; BadRequest becomes a 400."""
         if bad := _guard(request, json_body=True):
             return bad
+        if not api_limit.allow(client_key(request)):
+            return too_many()
         body: object = None
         try:
             body = await _body(request)
@@ -108,17 +145,26 @@ def register(app: FastAPI, root: Path | None = None) -> None:
                         str(b.get("learner"))[:20], str(b.get("card_id"))[:40])
             return JSONResponse({"error": str(e)}, 400)
 
+    @app.get("/healthz")
+    def healthz():
+        """For the hosting platform's health check (no guard: it calls from an internal address)."""
+        return {"ok": True, "compiler": service.available(), "cards": len(cards)}
+
     @app.get("/weblab")
     def weblab_page(request: Request):
         return _guard(request) or FileResponse(STATIC / "weblab.html")
 
     @app.get("/weblab/camera")
     def camera_page(request: Request):
+        if not photos:
+            return JSONResponse({"error": "not available on this site"}, 404)
         return _guard(request) or FileResponse(STATIC / "camera.html")
 
     @app.post("/api/weblab/photo")
     async def weblab_photo(request: Request):
         """Save one JPEG from the camera page under data/photos/<learner>/<card>/ (local test only)."""
+        if not photos:
+            return JSONResponse({"error": "not available on this site"}, 404)
         if bad := _guard(request, json_body=True):
             return bad
         body = await request.json()
@@ -151,16 +197,46 @@ def register(app: FastAPI, root: Path | None = None) -> None:
             "cards": {cid: card_view(c) for cid, c in cards.items()},
             "llm_provider": s.llm.provider,
             "test_mode": test_mode,
+            "public": public,
+            "roster_required": roster.required,
+            "guest_allowed": roster.guests_enabled,
             "compiler_ready": service.available(),
             "known_boards": [{"usbVendorId": v, "usbProductId": p, "name": n}
                              for (v, p), n in KNOWN.items()],
             "default_baud": s.board.baud,
         }
 
+    @app.post("/api/weblab/signin")
+    async def weblab_signin(request: Request):
+        if bad := _guard(request, json_body=True):
+            return bad
+        if not api_limit.allow(client_key(request)):
+            return too_many()
+        body = await request.json()
+        code = str(body.get("learner", "")).strip().lower() if isinstance(body, dict) else ""
+        if not roster.allowed(code):
+            return JSONResponse({"error": "This code is not on the class list. "
+                                          "Check it with your instructor."}, 403)
+        return {"ok": True}
+
+    @app.post("/api/weblab/guest")
+    async def weblab_guest(request: Request):
+        if bad := _guard(request, json_body=True):
+            return bad
+        if not roster.guests_enabled:
+            return JSONResponse({"error": "Guest access is off on this site."}, 403)
+        if not guest_limit.allow(client_key(request)):
+            return too_many("Too many guest codes from this network. Try again later.")
+        return {"learner": await run_in_threadpool(roster.new_guest)}
+
     @app.post("/api/weblab/compile")
     async def weblab_compile(request: Request):
         if bad := _guard(request, json_body=True):
             return bad
+        if not compile_limit.allow(client_key(request)):
+            msg = "You checked your code many times in a minute. Wait a moment, then try again."
+            return {"ok": False, "errors": [{"line": 0, "message": msg}], "hex": None,
+                    "flash_bytes": None, "flash_max": None, "compile_ms": 0}
         try:
             body = await _body(request)
         except BadRequest as e:
@@ -241,6 +317,8 @@ def register(app: FastAPI, root: Path | None = None) -> None:
 
     @app.post("/api/weblab/hint")
     async def weblab_hint(request: Request):
+        if not hint_limit.allow(client_key(request)):
+            return too_many("You asked for many hints in a minute. Try the last hint, then ask again.")
         return await tutor_call(request, lambda b: tutor.hint(
             b.get("learner"), b.get("card_id"), b.get("code"), b.get("serial"),
             b.get("message"), b.get("step_id")))

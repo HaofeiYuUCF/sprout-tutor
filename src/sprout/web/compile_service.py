@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from ..hardware.board import ArduinoCliBoard, CompileResult
+from .public import check_includes
 
 MAX_CODE_BYTES = 64_000
 SKETCH = "weblab"  # arduino-cli needs <folder>/<folder>.ino
@@ -63,6 +65,8 @@ class CompileService:
         if not self.available():
             return _fail("arduino-cli is not installed on the server "
                          "(run scripts/setup_arduino_cli.ps1)."), None
+        if reason := check_includes(code):
+            return _fail(reason), None
         t0 = time.time()
         with self._lock:
             sk = self.work_dir / SKETCH
@@ -70,7 +74,10 @@ class CompileService:
             sk.mkdir(parents=True, exist_ok=True)
             shutil.rmtree(out, ignore_errors=True)
             (sk / f"{SKETCH}.ino").write_text(code, encoding="utf-8")
-            r = self.board.compile(sk, output_dir=out)
+            try:
+                r = self.board.compile(sk, output_dir=out)
+            except subprocess.TimeoutExpired:
+                return _fail("Checking your code took too long. Try again in a moment."), None
             hex_file = out / f"{SKETCH}.ino.hex"
             hex_text = hex_file.read_text(encoding="ascii") if r.ok and hex_file.exists() else None
         errors = [{"line": d.line, "message": d.message} for d in r.errors]

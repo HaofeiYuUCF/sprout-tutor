@@ -67,9 +67,10 @@ class WebTutor:
     """Per-learner tutors and compile results. Thread-safe: routes run in a thread pool."""
 
     def __init__(self, cards: dict[str, CardBundle], make_tutor: Callable[[str], Tutor],
-                 data_dir: Path | None = None):
+                 data_dir: Path | None = None, allowed: Callable[[str], bool] | None = None):
         self.cards = cards
         self.make_tutor = make_tutor
+        self.allowed = allowed            # class list check on a public server
         self.data_dir = data_dir  # saved work: data/work/<learner>/<card>/
         self._learners: dict[str, _Learner] = {}
         self._lock = threading.Lock()
@@ -78,6 +79,8 @@ class WebTutor:
     def _learner(self, learner_id: object) -> _Learner:
         if not isinstance(learner_id, str) or not LEARNER_ID.match(learner_id):
             raise BadRequest("learner must look like l_ab12")
+        if self.allowed and not self.allowed(learner_id):
+            raise BadRequest("unknown student code")
         with self._lock:
             if learner_id not in self._learners:
                 self._learners[learner_id] = _Learner(self.make_tutor(learner_id))

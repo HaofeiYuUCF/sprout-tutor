@@ -81,8 +81,9 @@ class ArduinoCliBoard:
         self.broker = broker
 
     def _run(self, args: list[str], timeout: int = 180) -> subprocess.CompletedProcess:
+        from ..web.public import safe_env  # no API keys in the compiler's environment
         cmd = [str(self.cli), "--config-file", str(self.config_file), *args]
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=safe_env())
 
     @staticmethod
     def _json(proc: subprocess.CompletedProcess) -> dict:

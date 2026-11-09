@@ -1,0 +1,25 @@
+# Render Blueprint for the SPROUT Web Lab (see deploy/README.md for the click-by-click steps).
+# One web service built from the Dockerfile, with a 1 GB disk for student work and logs.
+services:
+  - type: web
+    name: sprout-weblab
+    runtime: docker
+    plan: starter            # a disk needs a paid plan; starter = 512 MB RAM, enough for a pilot
+    region: virginia         # closest Render region to Florida
+    autoDeploy: false        # deploy on purpose, not on every push
+    healthCheckPath: /healthz
+    disk:
+      name: sprout-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SPROUT_GUEST          # "Try it as a guest" button (reviewers, visitors)
+        value: "1"
+      - key: SPROUT_LLM_PROVIDER   # anthropic = AI hints on; mock = curated hints only, no API cost
+        value: anthropic
+      - key: ANTHROPIC_API_KEY     # entered by hand in the dashboard; never stored in the repo
+        sync: false
+      - key: SPROUT_AI_PER_DAY     # AI hints per student code per day
+        value: "30"
+      - key: SPROUT_ALLOWED_HOSTS  # add a custom domain here if you attach one
+        value: ""

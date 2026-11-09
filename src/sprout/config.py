@@ -36,8 +36,14 @@ def load_settings(root: Path | None = None) -> Settings:
         settings.llm.provider = p  # type: ignore[assignment]
     if p := os.environ.get("SPROUT_SERIAL_PORT"):
         settings.board.serial_port = p
-    if p := os.environ.get("SPROUT_UI_PORT"):
+    if p := os.environ.get("SPROUT_UI_PORT") or os.environ.get("PORT"):   # PORT: set by hosting platforms
         settings.ui.port = int(p)
+    if p := os.environ.get("SPROUT_ARDUINO_CLI"):          # container: /opt/arduino/arduino-cli
+        settings.board.arduino_cli = p
+    if p := os.environ.get("SPROUT_ARDUINO_CLI_CONFIG"):
+        settings.board.arduino_cli_config = p
+    if p := os.environ.get("SPROUT_DATA_DIR"):             # container: a mounted volume
+        settings.paths.data_dir = p
     return settings
 
 

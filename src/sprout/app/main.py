@@ -9,10 +9,12 @@ from __future__ import annotations
 import os
 import re
 
+from fastapi.responses import RedirectResponse
 from nicegui import app, ui
 
 from ..config import load_settings
 from ..runtime import build_board, build_tutor
+from ..web.public import public_mode
 from ..web.routes import register as register_weblab
 from .workbench import Session, build_page
 
@@ -30,7 +32,9 @@ def _board_singleton():
 
 
 @ui.page("/")
-def index(learner: str = "l_demo") -> None:
+def index(learner: str = "l_demo"):
+    if public_mode():   # the desktop workbench is for lab laptops; the public site is the Web Lab
+        return RedirectResponse("/weblab")
     if not LEARNER_ID.match(learner):
         ui.label("Invalid learner ID. Use the link your instructor gave you (e.g. ?learner=l_ab12).")
         return
@@ -49,5 +53,6 @@ def main() -> None:
     s = load_settings()
     app.on_shutdown(_shutdown)
     register_weblab(app)  # /weblab: browser-upload feasibility test
-    ui.run(host="127.0.0.1", port=s.ui.port, reload=False, title="SPROUT workbench",
-           show=os.environ.get("SPROUT_UI_SHOW", "1") == "1")
+    # 127.0.0.1 on a laptop; 0.0.0.0 inside the server container (behind the HTTPS proxy).
+    ui.run(host=os.environ.get("SPROUT_HOST", "127.0.0.1"), port=s.ui.port, reload=False,
+           title="SPROUT workbench", show=os.environ.get("SPROUT_UI_SHOW", "1") == "1")
