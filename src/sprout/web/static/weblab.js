@@ -272,7 +272,20 @@
     $("hints").replaceChildren();
     $("question").value = "";
     state.stepId = null;
-    if (!card) return;
+    if (!card) {
+      const buttons = Object.values(state.config.cards).map((c) => {
+        const b = el("button");
+        b.append(el("span", "stage", c.stage), el("span", "", c.title));
+        b.addEventListener("click", () => {
+          const sel = $("sketch");
+          sel.value = c.id; // the card's starter sketch
+          sel.dispatchEvent(new Event("change"));
+        });
+        return b;
+      });
+      $("card-picker").replaceChildren(...buttons);
+      return;
+    }
     $("card-title").textContent = card.title;
     $("card-ag").textContent = card.agriculture_connection;
     $("card-safety").replaceChildren(...card.safety.map((x) => el("li", "", x)));
@@ -374,6 +387,7 @@
       }
     };
     sel.addEventListener("change", load);
+    renderCard(); // draw the card picker before any card is chosen
     load();
     $("baud").value = String(state.config.default_baud || 9600);
 

@@ -107,3 +107,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .hint .meta b { color: var(--accent); font-weight: 600; }
 .hint .body { font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hint.err { border-left-color: var(--err); }
+.card-empty { display: flex; flex-direction: column; gap: 8px; }
+.card-empty p { margin: 0; }
+.picker { display: flex; flex-direction: column; gap: 6px; }
+.picker button { text-align: left; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; }
+.picker .stage { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
