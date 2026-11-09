@@ -57,6 +57,7 @@ For a class session you may want `SPROUT_GUEST=0`, so everything recorded belong
 | `SPROUT_COMPILE_PER_MIN` | 20 | code checks per network address per minute |
 | `SPROUT_HINT_PER_MIN` | 10 | hint requests per network address per minute |
 | `SPROUT_GUESTS_PER_HOUR` | 10 | guest codes per network address per hour |
+| `SPROUT_LLM_MODEL` | `claude-sonnet-5-5` | model for the AI hints; `claude-opus-5-5` is stronger and costs more |
 | `SPROUT_ALLOWED_HOSTS` | (empty) | extra host names, e.g. a custom domain; the `onrender.com` name is automatic |
 
 A whole classroom often shares one network address. For a class of 25 on campus Wi-Fi, raise

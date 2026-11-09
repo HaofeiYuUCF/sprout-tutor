@@ -34,7 +34,7 @@ class BoardSettings(Strict):
 
 class LLMSettings(Strict):
     provider: Literal["mock", "anthropic"] = "mock"
-    model: str = "claude-opus-5-5"
+    model: str = "claude-sonnet-5-5"
     effort: Literal["low", "medium", "high"] = "low"
     max_tokens: int = 2000
     use_cache: bool = True

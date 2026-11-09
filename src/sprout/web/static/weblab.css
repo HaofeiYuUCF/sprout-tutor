@@ -336,3 +336,16 @@ details.more p { margin: 6px 0 0; font-size: 13.5px; color: var(--fg); }
 .board-ok { padding: 12px 14px; border-radius: 8px; background: var(--accent); color: var(--accent-fg); font-weight: 600; font-size: 15px; }
 .warmup.ok { border-color: var(--ok); }
 .ok-text { color: var(--ok); }
+
+/* ---------- wording for first-time learners ---------- */
+.intro-lead { font-size: 16.5px; margin: 0; }
+.how { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+.signin-title { margin-top: 4px; padding-top: 14px; border-top: 1px solid var(--line); }
+.tight { margin: 0; font-size: 13.5px; }
+.step-head .para { display: block; }
+.step-head .para + .para { margin-top: 6px; }
+.step-tips { font-size: 14.5px; color: var(--fg); }
+.cmd-list { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
+.cmd-list dt code { font-size: 13px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+.cmd-list dd { margin: 0 0 6px; color: var(--muted); }
+.out .explain { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 13.5px; color: var(--fg); margin: 0 0 6px 14px; }

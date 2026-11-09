@@ -17,7 +17,8 @@
   // ------------------------------------------------------------------ steps
   const STEPS = [
     { id: "intro", short: "Meet the project", title: "Meet the project", regions: ["info"],
-      text: (c) => `${c.title}: read why it matters for growers, and check that you have the parts.`,
+      text: () => "Read why this project matters for growers, and look at the parts you will use.\n" +
+        "No kit yet? You can still do steps 1 to 4: they run on screen, in the simulator.",
       tips: [] },
     { id: "wire", short: "Wire it", title: "Wire it in the simulator", regions: ["sim", "simside"],
       mode: "sim", cardKind: "simulate", tutorStep: "simulate",
@@ -32,8 +33,9 @@
         "Press “Check my code” often. If something is wrong, click the red message to jump to that line."] },
     { id: "simrun", short: "Try it", title: "Try your code in the simulator",
       regions: ["editor", "sim", "simside", "check"], mode: "sim", tutorStep: "simulate",
-      text: () => "Press “Run my code”. Your program runs on the simulated board with your wiring. " +
-        "Compare what happens with the card, then press “Check my work”.",
+      text: () => "Press “Run my code” and let it run for a few seconds. Your program runs on the " +
+        "simulated board with your wiring: watch the parts and read the messages from the board.\n" +
+        "Then press “Check my work”.",
       tips: ["Nothing happens? Read the wiring tips and the messages from the board.",
         "You can change the code and run it again as often as you like."] },
     { id: "build", short: "Build it", title: "Build it on your real board", regions: ["buildref"],
@@ -124,7 +126,7 @@
   async function signIn(code, remembered = false) {
     const id = (code || "").trim().toLowerCase();
     if (!LEARNER_ID.test(id)) {
-      $("signin-err").textContent = "That code does not look right. It starts with l_ and has 3 to 12 letters or numbers, like l_ab12.";
+      $("signin-err").textContent = "That sign-in code does not look right. It starts with l_ and has 3 to 12 letters or numbers, like l_ab12.";
       $("signin-err").hidden = false;
       return;
     }
@@ -174,7 +176,7 @@
     const tiles = Object.values(state.config.cards).map((c, i) => {
       const b = el("button", "tile");
       badges[c.id] = el("span", "badge", "…");
-      b.append(el("span", "stage", `Card ${i + 1} · ${c.stage}`), el("span", "title", c.title),
+      b.append(el("span", "stage", `Card ${i + 1}`), el("span", "title", c.title),
         el("span", "blurb", c.agriculture_connection.split(". ")[0] + "."), badges[c.id]);
       b.addEventListener("click", () => openCard(c.id));
       return b;
@@ -274,6 +276,7 @@
     window.SproutParts.render($("card-parts"), c.parts, { onExplain: (item) => learn("explain", item) });
     renderConcepts(c.id);
     renderQuiz(c.id);
+    renderCommands(c.id);
     for (const id of ["card-safety", "build-safety"]) {
       $(id).replaceChildren(...c.safety.map((x) => el("li", "", x)));
       $(id).hidden = c.safety.length === 0;
@@ -324,6 +327,20 @@
     }));
   }
 
+  /** Next to the editor: the few commands this card needs, as patterns (not the answer). */
+  function renderCommands(cardId) {
+    const ref = (window.SproutConcepts.COMMANDS || {})[cardId];
+    for (const id of ["cmd-label", "cmd-note", "cmd-list", "cmd-help"]) $(id).hidden = !ref;
+    if (!ref) return;
+    $("cmd-note").textContent = ref.note || "";
+    $("cmd-note").hidden = !ref.note;
+    $("cmd-list").replaceChildren(...ref.list.flatMap(([syntax, meaning]) => {
+      const dt = el("dt");
+      dt.append(el("code", "", syntax));
+      return [dt, el("dd", "", meaning)];
+    }));
+  }
+
   function renderGlossary() {
     $("glossary-list").replaceChildren(...window.SproutConcepts.GLOSSARY.flatMap(([, term, text]) => [el("dt", "", term), el("dd", "", text)]));
   }
@@ -346,7 +363,8 @@
     for (const r of REGIONS) document.querySelector(`.r-${r}`).hidden = !s.regions.includes(r);
     $("step-title").textContent = state.steps.length > 1
       ? `Step ${state.stepIdx + 1} of ${state.steps.length} · ${s.title}` : s.title;
-    $("step-text").textContent = s.text ? s.text(c) : cardStepText(s.cardKind);
+    const paras = (s.text ? s.text(c) : cardStepText(s.cardKind)).split(/\n+/).filter(Boolean);
+    $("step-text").replaceChildren(...paras.map((p) => el("span", "para", p)));   // one block per paragraph
     $("step-tips").replaceChildren(...s.tips.map((t) => el("li", "", t)));
     $("step-tips").hidden = s.tips.length === 0;
     setMode(s.mode || "none");
@@ -384,6 +402,10 @@
 
   // ------------------------------------------------------------------ mode (which board the tutor judges)
   function setMode(mode) {
+    if (mode !== "none" && state.checkSource && state.checkSource !== mode) {
+      $("check-out").replaceChildren();      // a simulator result must not stand under "your real board"
+      state.checkSource = null;
+    }
     state.mode = mode;
     $("check-source").textContent = mode === "sim" ? "using the simulator" : mode === "board" ? "using your real board" : "";
     document.dispatchEvent(new CustomEvent("sprout:mode", { detail: mode }));
@@ -434,7 +456,44 @@
     });
     $("todo-help").hidden = items.length === 0;
     $("todo-list").replaceChildren(...(items.length ? items
-      : [el("li", "", "No to-do lines in this sketch. Follow the step text above.")]));
+      : [el("li", "", "No to-do lines in this code. Follow the step text above.")]));
+  }
+
+  // The compiler's wording is written for programmers. Add one plain sentence for the common mistakes.
+  const KNOWN_WORDS = ["pinMode", "digitalWrite", "digitalRead", "analogRead", "analogWrite", "delay", "Serial",
+    "println", "print", "begin", "HIGH", "LOW", "OUTPUT", "INPUT", "setup", "loop", "tone", "noTone", "millis",
+    "int", "float", "bool", "void", "const", "if", "else", "true", "false"];
+  function explainError(message) {
+    let m = /'(\w+)' was not declared in this scope/.exec(message);
+    if (m) {
+      const close = KNOWN_WORDS.find((k) => k !== m[1] && k.toLowerCase() === m[1].toLowerCase());
+      return close ? `The board does not know the word “${m[1]}”. Did you mean ${close}? Capital letters matter.`
+        : `The board does not know the word “${m[1]}”. Check its spelling and capital letters. It must match the name used at the top of the code or in “Commands you can use”.`;
+    }
+    m = /has no member named '(\w+)'/.exec(message);
+    if (m) {
+      const close = KNOWN_WORDS.find((k) => k !== m[1] && k.toLowerCase() === m[1].toLowerCase());
+      return `There is no command called “${m[1]}” here.${close ? ` Did you mean ${close}?` : ""} Check its spelling and capital letters.`;
+    }
+    if (/expected '[,;]'/.test(message)) {
+      return "A semicolon ; is missing. Look at the end of this line and of the line just above it.";
+    }
+    if (/expected '\)'/.test(message)) return "A closing bracket ) is missing. Every ( needs a ).";
+    if (/expected '\}' at end of input/.test(message)) return "A closing curly brace } is missing. Every { needs a }.";
+    if (/expected (declaration|unqualified-id) before/.test(message)) {
+      return "The curly braces { } do not match here: there may be one } too many, or code outside setup() and loop().";
+    }
+    if (/missing terminating . character/.test(message)) return "A text is missing its closing quote \". Text goes between two plain quotes.";
+    if (/stray '\\\d+' in program/.test(message)) {
+      return "There is a character the board cannot read, often a curly quote copied from another program. Type it again with the keyboard.";
+    }
+    if (/too (few|many) arguments to function/.test(message)) {
+      return "The values inside the brackets ( ) do not fit this command. Compare with “Commands you can use”.";
+    }
+    if (/expected primary-expression before/.test(message)) {
+      return "Something is missing or extra on this line. Compare it with the patterns in “Commands you can use”.";
+    }
+    return null;
   }
 
   async function compile() {
@@ -446,13 +505,14 @@
     if (!r.ok) {
       state.compiled = null;
       state.errorLines = new Set(r.errors.filter((e) => e.line).map((e) => e.line));
-      const rows = r.errors.map((e) => {
+      const rows = r.errors.flatMap((e) => {
         const div = el("div", e.line ? "err jump" : "err", e.line ? `Line ${e.line}: ${e.message}` : e.message);
         if (e.line) {
           div.title = "Show this line";
           div.addEventListener("click", () => jumpToLine(e.line));
         }
-        return div;
+        const plain = explainError(e.message);
+        return plain ? [div, el("div", "explain", `→ ${plain}`)] : [div];
       });
       rows.push(el("div", "muted", "Click a red message to jump to that line. Stuck? Press “Need help?”."));
       $("compile-out").replaceChildren(...rows);
@@ -463,7 +523,9 @@
     updateGutter();
     state.compiled = { code, hex: r.hex, flash_bytes: r.flash_bytes, flash_max: r.flash_max };
     show($("compile-out"), [["ok", "✓ The computer understands your code."]]);
-    if (r.flash_bytes) $("size").textContent = `uses ${r.flash_bytes} of ${r.flash_max} bytes on the board`;
+    if (r.flash_bytes && r.flash_max) {
+      $("size").textContent = `uses ${Math.max(1, Math.round(100 * r.flash_bytes / r.flash_max))}% of the board's memory`;
+    }
     return state.compiled;
   }
 
@@ -696,6 +758,34 @@
   }
 
   // ------------------------------------------------------------------ check my work
+  const CHECK_LABELS = {
+    compiles: "Your code compiles",
+    led_messages: "The board says LED ON and LED OFF",
+    fan_messages: "The board says FAN ON and FAN OFF",
+    plausible_room_temperature: "The temperature looks right for a room",
+    fan_state_printed: "The messages show fan=ON or fan=OFF",
+    alarm_state_printed: "The messages show alarm=ON or alarm=OFF",
+  };
+  /** One check result as a sentence a beginner can read. */
+  function checkRowText(x) {
+    const label = CHECK_LABELS[x.id] || x.id.replace(/_/g, " ");
+    let detail = x.detail || "";
+    let m;
+    if (/^compiles$/.test(detail)) detail = "";
+    else if (/^does not compile yet$/.test(detail)) detail = "not yet. Press “Check my code” in step 3 and fix any red messages";
+    else if ((m = /^(\d+) matching lines \(need (\d+)\)$/.exec(detail))) {
+      detail = x.passed ? `${m[1]} matching messages` : `${m[1]} matching messages so far, ${m[2]} needed`;
+    } else if ((m = /^last \d+ (\w+): (.+) \(expect (-?[\d.]+)–(-?[\d.]+)\)$/.exec(detail))) {
+      if (m[2] === "no values") detail = `no ${m[1]}= values in the messages yet`;
+      else {
+        const inRange = m[2].split(", ").every((v) => Number(v) >= Number(m[3]) && Number(v) <= Number(m[4]));
+        detail = `last readings ${m[2]} (should be between ${m[3]} and ${m[4]})` +
+          (!x.passed && inRange ? ". A few more readings are needed: let it run a little longer" : "");
+      }
+    }
+    return `${x.passed ? "✓" : "○"} ${label}${detail ? `: ${detail}` : ""}`;
+  }
+
   async function checkWork() {
     if (!state.cardId) return;
     state.asking = true;
@@ -703,13 +793,19 @@
     try {
       const r = await postJson("/api/weblab/check", { learner: state.learner, card_id: state.cardId,
         code: $("code").value, serial: currentSerial(), source: state.mode === "sim" ? "sim" : "board" });
-      const rows = r.results.map((x) => el("div", x.passed ? "pass" : "todo",
-        `${x.passed ? "✓" : "○"} ${x.id.replace(/_/g, " ")}: ${x.detail}`));
+      const source = state.mode === "sim" ? "sim" : "board";
+      state.checkSource = source;
+      const rows = r.results.map((x) => el("div", x.passed ? "pass" : "todo", checkRowText(x)));
       if (r.all_passed && r.completes_card) {
         rows.push(el("div", "done", "🎉 Card complete on your real board! Go on to the last step."));
       } else if (r.all_passed) {
         rows.push(el("div", "done", "It works in the simulator. Next, build it on your real board."));
       } else {
+        if (currentSerial().length === 0) {
+          rows.push(el("div", "todo", source === "sim"
+            ? "The simulated board has not sent any messages yet. Press “Run my code” first, let it run for a few seconds, then check again."
+            : "Your board has not sent any messages yet. Connect it, send your code, wait a few seconds, then check again."));
+        }
         rows.push(el("div", "muted", "Not yet. Fix the items marked ○, then check again. Stuck? Press “Need help?”."));
       }
       $("check-out").replaceChildren(...rows);
@@ -767,7 +863,7 @@
         code: $("code").value, serial: currentSerial(), message, step_id: step().tutorStep || null });
       const box = el("div", "hint");
       const meta = el("div", "meta");
-      meta.append(el("b", "", r.source_label), document.createTextNode(` · hint ${r.step} of ${r.max_step}`));
+      meta.append(el("b", "", r.source_label), document.createTextNode(` · hint level ${r.step} of ${r.max_step}`));
       box.append(meta, mdBody(r.text));
       $("hints").appendChild(box);
       $("question").value = "";

@@ -11,7 +11,7 @@
   <div class="brand">SPROUT <span>Web Lab</span></div>
   <div id="test-tag" class="tag" hidden>Test build &middot; this computer only</div>
   <span class="spacer"></span>
-  <button id="btn-basics" class="small" hidden aria-controls="glossary">Basics</button>
+  <button id="btn-basics" class="small" hidden aria-controls="glossary" title="Short reminders of words such as voltage, pin and GND">Word list</button>
   <div id="who" class="who" hidden>Student <b id="who-id"></b> <button id="btn-switch" class="link">Not you?</button></div>
 </header>
 
@@ -23,14 +23,24 @@
   <!-- ===================== 1. sign in ===================== -->
   <section id="screen-signin" class="screen narrow">
     <h1>Welcome to SPROUT</h1>
-    <p>Type the student code your instructor gave you. It looks like <code>l_ab12</code>.</p>
+    <p class="intro-lead">Learn the electronics behind smart farming by building a small greenhouse controller,
+      one short project at a time. No experience needed.</p>
+    <ol class="how">
+      <li><b>Wire it</b> in an on-screen simulator. Nothing can break.</li>
+      <li><b>Write a few lines of code</b>, with hints when you are stuck.</li>
+      <li><b>Build it</b> on a real Arduino board, if you have a kit.</li>
+    </ol>
+    <p class="muted">No kit yet? You can still do the simulator and code steps of every project.
+      Use a laptop or Chromebook with Google Chrome or Microsoft Edge.</p>
+    <h2 class="signin-title">Sign in</h2>
+    <p>Type the sign-in code your instructor gave you. It looks like <code>l_ab12</code>.</p>
     <form id="signin-form" class="signin-form" autocomplete="off">
-      <input id="signin-code" type="text" aria-label="Student code" placeholder="l_ab12" spellcheck="false">
+      <input id="signin-code" type="text" aria-label="Sign-in code" placeholder="l_ab12" spellcheck="false">
       <button class="primary big">Start</button>
     </form>
     <p id="signin-err" class="err-text" hidden></p>
-    <p class="muted">Your code keeps your work separate from everyone else's. We never ask for your name.</p>
-    <button id="signin-guest" class="link" hidden>No code? Try it as a guest</button>
+    <p class="muted">The sign-in code works like a username: it saves your work and keeps it separate from everyone else's. We never ask for your name.</p>
+    <button id="signin-guest" class="link" hidden>No sign-in code? Try it as a guest</button>
     <button id="signin-demo" class="link" hidden>Use a practice code (test mode)</button>
   </section>
 
@@ -38,7 +48,7 @@
   <section id="screen-cards" class="screen" hidden>
     <div>
       <h1>Choose a card</h1>
-      <p class="muted">Each card is one small project. You wire it in the simulator, write the code, then build it on your own board.</p>
+      <p class="muted">Each card is one small project with seven short steps: you wire it in the simulator, write the code, then build it on your own board. <b>New here? Start with Card 1</b> and go in order, because each card builds on the one before. Your work is saved as you go.</p>
     </div>
     <div id="card-tiles" class="tiles"></div>
     <div id="warmup-panel" class="panel warmup">
@@ -87,10 +97,12 @@
         </div>
         <span class="label">New ideas in this card</span>
         <div id="card-concepts" class="concepts"></div>
-        <span class="label">Find these parts in your kit</span>
+        <span class="label">Parts in this card</span>
+        <p class="muted tight">You find them in your kit. In the simulator they are already on the screen.</p>
         <div id="card-parts" class="part-gallery"></div>
         <span id="quiz-label" class="label">Check yourself (not graded)</span>
         <div id="card-quiz" class="quiz"></div>
+        <span id="safety-label" class="label">Safety, for when you build on the real board</span>
         <ul id="card-safety" class="safety"></ul>
       </section>
 
@@ -112,9 +124,13 @@
       </section>
 
       <section class="panel r-todo">
-        <span class="label">To do in this sketch</span>
+        <span class="label">To do in your code</span>
         <ul id="todo-list" class="todo-list"></ul>
-        <p id="todo-help" class="muted">Replace each line that starts with <code>// TODO</code> with your code. The list ticks itself off as you go.</p>
+        <p id="todo-help" class="muted">Replace each line that starts with <code>// TODO</code> with your own code. A tick only means that the TODO line is gone. Press “Check my code” to see whether the code is right.</p>
+        <span id="cmd-label" class="label">Commands you can use</span>
+        <p id="cmd-note" class="muted tight"></p>
+        <dl id="cmd-list" class="cmd-list"></dl>
+        <p id="cmd-help" class="muted">Spelling and capital letters matter: <code>pinMode</code> works, <code>pinmode</code> does not.</p>
       </section>
 
       <!-- simulator -->
@@ -229,11 +245,11 @@
 </main>
 
 <button id="help-fab" class="help-fab primary" hidden aria-controls="help">Need help?</button>
-<aside id="glossary" class="drawer" aria-label="Basics" hidden>
+<aside id="glossary" class="drawer" aria-label="Word list" hidden>
   <div class="panel-head">
-    <h2>Basics</h2>
+    <h2>Word list</h2>
     <span class="spacer"></span>
-    <button id="glossary-close" class="small" aria-label="Close the basics">Close</button>
+    <button id="glossary-close" class="small" aria-label="Close the word list">Close</button>
   </div>
   <p class="muted">Short reminders of the words used in the cards.</p>
   <dl id="glossary-list" class="glossary"></dl>
@@ -246,8 +262,8 @@
     <span class="spacer"></span>
     <button id="help-close" class="small" aria-label="Close the tutor">Close</button>
   </div>
-  <p class="muted">Tell the tutor what you see and what you expected. It gives a hint, not the answer. Try the hint, then ask again if you are still stuck.</p>
-  <textarea id="question" placeholder="Example: The LED stays off, and the messages say PUMP ON."></textarea>
+  <p class="muted">Tell the tutor what you see and what you expected. It gives a hint, not the answer. Hints come in up to 4 levels: try the hint first, then ask again if you are still stuck, and the next hint says more.</p>
+  <textarea id="question" placeholder="Example: The LED stays off, but the messages say LED ON."></textarea>
   <div class="actions"><button id="btn-hint" class="primary">Get a hint</button></div>
   <div id="hints" class="hints" aria-live="polite"></div>
 </aside>

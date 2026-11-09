@@ -546,7 +546,15 @@ function init() {
     run = null;
     $("sim-stop").disabled = true;
     refresh(true);
-    setStatus("Stopped. Press Run to start your program.");
+    setStatus(wiringStep() ? "Stopped. Change the wiring if you like, then press “Test my wiring” again."
+      : "Stopped. Press “Run my code” to start your program again.");
+  }
+  /** What to do next, in the words of the step the student is on. */
+  function wiringStep() { return document.body.dataset.step === "wire"; }
+  function idleText() {
+    return wiringStep()
+      ? "Drag the parts onto the breadboard and add wires. Then press “Test my wiring”."
+      : "Press “Run my code” to start your program. You can change the wiring before or while it runs.";
   }
 
   // ------------------------------------------------------------------ feedback
@@ -719,7 +727,9 @@ function init() {
       return;
     }
     if (!t) {
-      setStatus("Wire a part first. The test needs at least one output connected to a pin and GND, or the thermistor divider connected to an analog pin.");
+      setStatus(scenario.kinds.includes("thm")
+        ? "Wire a part first. The test needs at least one part connected to a numbered pin and GND, or the thermistor and its 10k resistor connected to an analog pin (A0)."
+        : "Wire a part first. The test needs at least one part connected to a numbered pin (for example pin 9) and to GND.");
       refresh(true);
       return;
     }
@@ -920,7 +930,10 @@ function init() {
     refresh(true);
   });
   $("sim-temp").addEventListener("change", notifyChange);
-  document.addEventListener("sprout:mode", (ev) => { if (ev.detail !== "sim" && run) stop(); });
+  document.addEventListener("sprout:mode", (ev) => {
+    if (ev.detail !== "sim" && run) stop();
+    else if (ev.detail === "sim" && !run) setStatus(idleText());
+  });
 
   // ------------------------------------------------------------------ example wiring (test mode)
   const place = (k, col, row, flipped = false) => {
@@ -981,5 +994,5 @@ function init() {
   };
 
   setScenario(window.SproutLab && window.SproutLab.currentCard ? window.SproutLab.currentCard() : null);
-  setStatus("Press Run to start your program. You can wire the parts before or while it runs.");
+  setStatus(idleText());
 }

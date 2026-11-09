@@ -21,7 +21,7 @@ parts:
 safety:
   - Unplug the USB cable before you add, move or remove any part or wire.
   - Low-voltage DC only (5 V from USB). Never connect anything to mains power.
-  - Always put a resistor in series with an LED.
+  - Always put a resistor in the same path as an LED (in series). It keeps the current small.
 tinkercad:
   note: Optional extra. Tinkercad Circuits can also build this circuit (LED and 220 ohm resistor).
 steps:
@@ -30,8 +30,10 @@ steps:
     text: >-
       Part A, no code: wire 5V to the 220 Ω resistor, the resistor to the LED's long leg, and the
       LED's short leg to GND. The LED lights. Now try three things and read the wiring tips each
-      time: turn the LED around, take the resistor out, pull one wire. Part B: move the wire from
-      5V to pin 9 and press "Test my wiring". The LED should blink.
+      time: turn the LED around, take the resistor out, pull one wire.
+
+      Part B: put everything back the way it was. Then move the wire from 5V to pin 9 and press
+      "Test my wiring". The LED should blink.
   - id: build
     kind: build
     text: >-

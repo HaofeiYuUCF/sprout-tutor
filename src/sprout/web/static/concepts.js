@@ -106,5 +106,31 @@
     ["check", "Check my code", "The computer checks your code and turns it into something the board can run. Errors show the line number."],
   ];
 
-  global.SproutConcepts = { CONCEPTS, QUIZ, GLOSSARY };
+  // Shown next to the editor: the commands a card needs, as patterns. They are not the answer:
+  // the student still has to choose the pin, the value, the text and the order.
+  const PIN_MODE = ["pinMode(pin, OUTPUT);", "Makes a pin an output, so it can switch something on. It goes in setup()."];
+  const DIGITAL_WRITE = ["digitalWrite(pin, HIGH);", "Turns a pin on (5 V). Write LOW instead of HIGH to turn it off."];
+  const DELAY = ["delay(1000);", "Waits 1000 milliseconds, which is 1 second."];
+  const PRINTLN_TEXT = ["Serial.println(\"text\");", "Sends a line of text to the computer. Your text goes between the quotes."];
+  const PRINT = ["Serial.print(value);", "Sends a text or a number and stays on the same line."];
+  const PRINTLN = ["Serial.println(value);", "Sends a text or a number, then starts a new line."];
+  const COMMANDS = {
+    c01_light_led: { note: "In this card the pin is called LED_PIN.",
+      list: [PIN_MODE, DIGITAL_WRITE, DELAY, PRINTLN_TEXT] },
+    c02_greenhouse_temp: { note: "The to-do lines already give the three formulas. To print raw=512 temp_c=25.0, send four pieces one after the other: a text, a number, a text, a number.",
+      list: [["analogRead(pin)", "Measures the voltage on an analog pin and gives a number from 0 to 1023."],
+        ["int name = value;", "Makes a named place for a whole number. Use float for a number with decimals."],
+        PRINT, PRINTLN] },
+    c03_vent_fan: { note: "In this card the pin is called FAN_PIN.",
+      list: [PIN_MODE, DIGITAL_WRITE, ["delay(3000);", "Waits 3000 milliseconds, which is 3 seconds."], PRINTLN_TEXT] },
+    c04_heat_alarm: { note: "In this card the pin is called BUZZER_PIN.",
+      list: [["if (a > b) { ... } else { ... }", "Runs the first block when a is above b, and the second block otherwise."],
+        PIN_MODE, DIGITAL_WRITE, PRINT, PRINTLN] },
+    c05_greenhouse_controller: { note: "In this card the pins are called FAN_PIN and BUZZER_PIN.",
+      list: [["bool name = a > b;", "Makes a named yes-or-no value: true when a is above b, false otherwise."],
+        ["if (name) { ... } else { ... }", "Runs the first block when the value is true, and the second block otherwise."],
+        PIN_MODE, DIGITAL_WRITE, PRINT, PRINTLN] },
+  };
+
+  global.SproutConcepts = { CONCEPTS, QUIZ, GLOSSARY, COMMANDS };
 })(window);

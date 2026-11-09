@@ -10,7 +10,7 @@ board:
 
 llm:
   provider: mock          # mock | anthropic (env SPROUT_LLM_PROVIDER overrides)
-  model: claude-opus-5-5
+  model: claude-sonnet-5-5   # env SPROUT_LLM_MODEL overrides (e.g. claude-opus-5-5 for harder questions)
   effort: low             # low | medium | high
   max_tokens: 2000
   use_cache: true         # cache responses on disk so evaluation reruns are free and reproducible
