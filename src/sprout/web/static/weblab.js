@@ -16,10 +16,16 @@
     learner: "l_demo",
     cardId: null,      // card of the selected sketch (null for the hello test)
     stepId: null,      // card step the student has open
-    serialLines: [],   // complete serial lines since the last upload (sent to the tutor)
+    serialLines: [],   // real board: complete serial lines since the last upload (sent to the tutor)
     serialPartial: "",
+    simLines: [],      // simulator: serial lines since the last simulator run
+    simPartial: "",
     asking: false,
     loadedCode: "",    // code as loaded, to tell whether the student changed anything
+    mode: "sim",       // "sim" | "board"
+    saveKey: null,     // card whose work autosaves (null for the hello test and seeded faults)
+    saveTimer: null,
+    pending: {},       // unsaved fields: { code, sim }
   };
 
   const LEARNER_ID = /^l_[a-z0-9]{3,12}$/;
@@ -72,13 +78,92 @@
     $("baud").disabled = state.busy;
     $("btn-check").disabled = state.busy || state.asking;
     $("btn-hint").disabled = state.busy || state.asking;
+    $("btn-sim-run-2").disabled = state.busy;
   }
 
-  function collectSerial(text) {
-    const parts = (state.serialPartial + text).split(/\r?\n/);
-    state.serialPartial = parts.pop().slice(-300);
-    for (const line of parts) if (line.trim()) state.serialLines.push(line.slice(0, 300));
-    if (state.serialLines.length > 300) state.serialLines.splice(0, state.serialLines.length - 300);
+  function collectSerial(text, source = "board") {
+    const linesKey = source === "sim" ? "simLines" : "serialLines";
+    const partKey = source === "sim" ? "simPartial" : "serialPartial";
+    const parts = (state[partKey] + text).split(/\r?\n/);
+    state[partKey] = parts.pop().slice(-300);
+    const lines = state[linesKey];
+    for (const line of parts) if (line.trim()) lines.push(line.slice(0, 300));
+    if (lines.length > 300) lines.splice(0, lines.length - 300);
+  }
+
+  /** The serial lines the tutor should judge: from the simulator or the real board. */
+  const currentSerial = () => (state.mode === "sim" ? state.simLines : state.serialLines);
+
+  // ---------- mode: simulate or real board ----------
+  function setMode(mode, remember = true) {
+    if (mode !== "sim" && mode !== "board") return;
+    state.mode = mode;
+    document.body.classList.toggle("mode-sim", mode === "sim");
+    document.body.classList.toggle("mode-board", mode === "board");
+    $("mode-sim").setAttribute("aria-selected", String(mode === "sim"));
+    $("mode-board").setAttribute("aria-selected", String(mode === "board"));
+    $("check-source").textContent = mode === "sim" ? "using the simulator" : "using the real board";
+    document.dispatchEvent(new CustomEvent("sprout:mode", { detail: mode }));
+    if (remember) {
+      try { localStorage.setItem("sprout.mode", mode); } catch (_) { /* storage may be blocked */ }
+    }
+    refreshButtons();
+  }
+
+  // ---------- line numbers ----------
+  function updateGutter() {
+    const n = $("code").value.split("\n").length;
+    const errs = state.errorLines || new Set();
+    const g = $("gutter");
+    g.replaceChildren(...Array.from({ length: n }, (_, i) => {
+      const span = document.createElement("span");
+      span.textContent = `${i + 1}\n`;
+      if (errs.has(i + 1)) span.className = "err-line";
+      return span;
+    }));
+    g.scrollTop = $("code").scrollTop;
+  }
+
+  function jumpToLine(line) {
+    const ta = $("code");
+    const lines = ta.value.split("\n");
+    const start = lines.slice(0, line - 1).reduce((a, l) => a + l.length + 1, 0);
+    ta.focus();
+    ta.setSelectionRange(start, start + (lines[line - 1] || "").length);
+    const lh = parseFloat(getComputedStyle(ta).lineHeight) || 20;
+    ta.scrollTop = Math.max(0, (line - 4) * lh);
+    updateGutter();
+  }
+
+  // ---------- autosave (per learner and card, on the server) ----------
+  function setSaveStatus(text, bad = false) {
+    $("save-status").textContent = text;
+    $("save-status").classList.toggle("bad", bad);
+  }
+
+  function queueSave(fields) {
+    if (!state.saveKey) return;
+    Object.assign(state.pending, fields);
+    setSaveStatus("Saving…");
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(flushSave, 800);
+  }
+
+  async function flushSave(keepalive = false) {
+    clearTimeout(state.saveTimer);
+    if (!state.saveKey || !Object.keys(state.pending).length) return;
+    const body = { learner: state.learner, card_id: state.saveKey, ...state.pending };
+    state.pending = {};
+    try {
+      const r = await fetch("/api/weblab/save", { method: "POST", keepalive,
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      if (!r.ok) throw new Error(String(r.status));
+      setSaveStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
+    } catch (e) {
+      Object.assign(state.pending, body.code !== undefined ? { code: body.code } : {},
+        body.sim !== undefined ? { sim: body.sim } : {});
+      setSaveStatus("Not saved yet: the server is not reachable", true);
+    }
   }
 
   function appendMonitor(text) {
@@ -98,10 +183,23 @@
       { code, learner: state.learner, card_id: state.cardId });
     if (!r.ok) {
       state.compiled = null;
-      show($("compile-out"), r.errors.map((e) =>
-        ["err", e.line ? `Line ${e.line}: ${e.message}` : e.message]));
+      state.errorLines = new Set(r.errors.filter((e) => e.line).map((e) => e.line));
+      const out = $("compile-out");
+      out.replaceChildren(...r.errors.map((e) => {
+        const div = document.createElement("div");
+        div.className = e.line ? "err jump" : "err";
+        div.textContent = e.line ? `Line ${e.line}: ${e.message}` : e.message;
+        if (e.line) {
+          div.title = "Show this line in the editor";
+          div.addEventListener("click", () => jumpToLine(e.line));
+        }
+        return div;
+      }));
+      updateGutter();
       return null;
     }
+    state.errorLines = new Set();
+    updateGutter();
     state.compiled = { code, hex: r.hex, flash_bytes: r.flash_bytes, flash_max: r.flash_max };
     show($("compile-out"), [["ok", `Compiled in ${(r.compile_ms / 1000).toFixed(1)} s.`]]);
     if (r.flash_bytes) {
@@ -272,7 +370,7 @@
     $("check-out").replaceChildren();
     $("hints").replaceChildren();
     $("question").value = "";
-    $("back-confirm").hidden = true;
+    $("restart-confirm").hidden = true;
     state.stepId = null;
     if (!card) {
       const buttons = Object.values(state.config.cards).map((c) => {
@@ -296,19 +394,26 @@
       const d = el("details");
       d.append(el("summary", "", `${i + 1}. ${st.kind[0].toUpperCase()}${st.kind.slice(1)}`),
         el("p", "", st.text));
-      if (st.kind === "simulate") d.append(el("p", "muted", `Tinkercad: ${card.tinkercad}`));
+      if (st.kind === "simulate") {
+        d.append(el("p", "muted", "Use Simulate mode (top right): wire the parts and run your code there first."));
+      }
       d.addEventListener("toggle", () => {
         if (!d.open) return;
         state.stepId = st.id;
         for (const other of $("card-steps").children) if (other !== d) other.open = false;
+        // Simulate first, then build and run on the real board.
+        if (st.kind === "simulate") setMode("sim");
+        else if (st.kind === "build" || st.kind === "run") setMode("board");
       });
       return d;
     });
     $("card-steps").replaceChildren(...steps);
   }
 
-  function goBack() {
+  /** Back to the card list. The work is autosaved, so nothing is lost. */
+  async function goBack() {
     const changed = $("code").value !== state.loadedCode;
+    await flushSave();
     if (state.cardId) {
       postJson("/api/weblab/card_leave", { learner: state.learner, card_id: state.cardId,
         code: $("code").value, changed }).catch(() => { /* logging is best-effort */ });
@@ -318,13 +423,19 @@
     sel.dispatchEvent(new Event("change"));
   }
 
-  function askBack() {
-    if ($("code").value === state.loadedCode) {
-      goBack(); // nothing to lose
-      return;
+  /** Start over: delete the saved code and wiring, then reload the starter. */
+  async function startOver() {
+    $("restart-confirm").hidden = true;
+    const key = state.saveKey || state.cardId;
+    state.pending = {};
+    clearTimeout(state.saveTimer);
+    if (key) {
+      try {
+        await postJson("/api/weblab/discard", { learner: state.learner, card_id: key });
+      } catch (_) { /* the reload below still resets the page */ }
     }
-    $("back-confirm").hidden = false;
-    $("btn-stay").focus();
+    await loadSketch(true);
+    setSaveStatus("Started over");
   }
 
   async function openCard() {
@@ -341,10 +452,15 @@
     refreshButtons();
     try {
       const r = await postJson("/api/weblab/check", { learner: state.learner, card_id: state.cardId,
-        code: $("code").value, serial: state.serialLines });
+        code: $("code").value, serial: currentSerial(), source: state.mode });
       const rows = r.results.map((x) =>
         el("div", x.passed ? "pass" : "todo", `${x.passed ? "✓" : "○"} ${x.id}: ${x.detail}`));
-      if (r.all_passed) rows.push(el("div", "done", "Card complete. Go on to the Reflect step."));
+      if (r.all_passed && r.completes_card) {
+        rows.push(el("div", "done", "Card complete on the real board. Go on to the Reflect step."));
+      } else if (r.all_passed) {
+        rows.push(el("div", "done", "It works in the simulator. Now build it on the real board " +
+          "(Real board mode) and check again to complete the card."));
+      }
       $("check-out").replaceChildren(...rows);
     } catch (e) {
       $("check-out").replaceChildren(el("div", "todo", `Could not check: ${e.message}`));
@@ -361,7 +477,7 @@
     const message = $("question").value;
     try {
       const r = await postJson("/api/weblab/hint", { learner: state.learner, card_id: state.cardId,
-        code: $("code").value, serial: state.serialLines, message, step_id: state.stepId });
+        code: $("code").value, serial: currentSerial(), message, step_id: state.stepId });
       const box = el("div", "hint");
       const meta = el("div", "meta");
       meta.append(el("b", "", r.source_label), document.createTextNode(
@@ -382,14 +498,55 @@
   // ---------- hooks for the simulator module (sim.js) ----------
   window.SproutLab = {
     compile: () => compile(),                 // { hex, ... } or null (errors shown under the editor)
-    resetSerial: () => { state.serialLines = []; state.serialPartial = ""; },
-    feedSerial: (text) => collectSerial(text), // simulated output also counts for Check my work
+    resetSerial: () => { state.simLines = []; state.simPartial = ""; },
+    feedSerial: (text) => collectSerial(text, "sim"), // checks in Simulate mode use this output
     currentCard: () => simCard(),
+    simStarted: () => {
+      if (!state.cardId) return;
+      postJson("/api/weblab/sim_run", { learner: state.learner, card_id: state.cardId,
+        code: $("code").value }).catch(() => { /* logging is best-effort */ });
+    },
   };
+  document.addEventListener("sprout:simchange", (ev) => queueSave({ sim: ev.detail }));
 
   function simCard() {
     const card = state.cardId ? state.config.cards[state.cardId] : null;
     return card ? { cardId: card.id, title: card.title, parts: card.parts } : null;
+  }
+
+  /** Show the selected sketch. A card's own sketch comes back with the student's saved code and
+   *  wiring; starting over (fresh = true) ignores what was saved. */
+  async function loadSketch(fresh) {
+    await flushSave();
+    const sel = $("sketch");
+    const s = state.config.sketches.find((x) => x.id === sel.value);
+    const cardId = s ? s.card_id : null;
+    state.saveKey = s && s.card_id && s.id === s.card_id ? s.card_id : null;
+    let code = s ? s.code : "";
+    let sim = null;
+    if (state.saveKey && !fresh) {
+      try {
+        const w = await postJson("/api/weblab/work", { learner: state.learner, card_id: state.saveKey });
+        if (typeof w.code === "string") code = w.code;
+        sim = w.sim;
+        setSaveStatus(w.code ? "Your saved work" : "");
+      } catch (_) {
+        setSaveStatus("Could not load saved work", true);
+      }
+    } else {
+      setSaveStatus(state.saveKey ? "" : cardId ? "Practice sketch: not saved" : "");
+    }
+    $("code").value = code;
+    state.loadedCode = code;
+    state.compiled = null;
+    state.errorLines = new Set();
+    updateGutter();
+    $("size").textContent = "";
+    show($("compile-out"), []);
+    state.simLines = [];
+    state.cardId = cardId;
+    openCard();
+    document.dispatchEvent(new CustomEvent("sprout:card", { detail: { ...(simCard() || {}), sim } }));
   }
 
   // ---------- start ----------
@@ -399,6 +556,9 @@
     state.config = await r.json();
     if (!state.config.compiler_ready) $("no-compiler").hidden = false;
     if (state.config.test_mode && $("sim-example")) $("sim-example").hidden = false;
+    let savedMode = "sim";
+    try { savedMode = localStorage.getItem("sprout.mode") || "sim"; } catch (_) { /* blocked */ }
+    setMode(savedMode, false);
     const fromUrl = new URLSearchParams(location.search).get("learner");
     if (fromUrl && LEARNER_ID.test(fromUrl)) state.learner = fromUrl;
     $("learner").textContent = state.learner;
@@ -410,24 +570,9 @@
       o.textContent = s.title;
       sel.appendChild(o);
     }
-    const load = () => {
-      const s = state.config.sketches.find((x) => x.id === sel.value);
-      $("code").value = s ? s.code : "";
-      state.loadedCode = $("code").value;
-      state.compiled = null;
-      $("size").textContent = "";
-      show($("compile-out"), []);
-      const cardId = s ? s.card_id : null;
-      const cardChanged = cardId !== state.cardId;
-      if (cardChanged || cardId) {
-        state.cardId = cardId;
-        openCard();
-      }
-      if (cardChanged) document.dispatchEvent(new CustomEvent("sprout:card", { detail: simCard() }));
-    };
-    sel.addEventListener("change", load);
+    sel.addEventListener("change", () => loadSketch(false));
     renderCard(); // draw the card picker before any card is chosen
-    load();
+    await loadSketch(false);
     $("baud").value = String(state.config.default_baud || 9600);
 
     $("code").addEventListener("keydown", (e) => {
@@ -449,9 +594,22 @@
     $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; });
     $("btn-check").addEventListener("click", checkWork);
     $("btn-hint").addEventListener("click", askHint);
-    $("btn-back").addEventListener("click", askBack);
-    $("btn-discard").addEventListener("click", goBack);
-    $("btn-stay").addEventListener("click", () => { $("back-confirm").hidden = true; });
+    $("btn-back").addEventListener("click", goBack);
+    $("btn-restart").addEventListener("click", () => {
+      $("restart-confirm").hidden = false;
+      $("btn-restart-no").focus();
+    });
+    $("btn-restart-yes").addEventListener("click", startOver);
+    $("btn-restart-no").addEventListener("click", () => { $("restart-confirm").hidden = true; });
+    $("mode-sim").addEventListener("click", () => setMode("sim"));
+    $("mode-board").addEventListener("click", () => setMode("board"));
+    $("btn-sim-run-2").addEventListener("click", () => $("sim-run").click());
+    $("code").addEventListener("input", () => {
+      updateGutter();
+      queueSave({ code: $("code").value });
+    });
+    $("code").addEventListener("scroll", () => { $("gutter").scrollTop = $("code").scrollTop; });
+    window.addEventListener("pagehide", () => { flushSave(true); });
     $("baud").addEventListener("change", async () => {
       if (state.transport?.isOpen) {
         state.decoder = new TextDecoder();

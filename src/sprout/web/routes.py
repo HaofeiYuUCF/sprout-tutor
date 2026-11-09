@@ -81,7 +81,7 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     trials = d / "weblab" / "upload_trials.jsonl"
     test_mode = os.environ.get("SPROUT_WEBLAB_TEST") == "1"
     cards = load_cards(root)
-    tutor = WebTutor(cards, lambda learner: build_tutor(learner, root))
+    tutor = WebTutor(cards, lambda learner: build_tutor(learner, root), d)
 
     app.add_static_files("/weblab/static", STATIC, max_cache_age=0)
     if test_mode:
@@ -164,7 +164,31 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     @app.post("/api/weblab/check")
     async def weblab_check(request: Request):
         return await tutor_call(request, lambda b: tutor.check(
-            b.get("learner"), b.get("card_id"), b.get("code"), b.get("serial")))
+            b.get("learner"), b.get("card_id"), b.get("code"), b.get("serial"),
+            b.get("source", "board")))
+
+    @app.post("/api/weblab/sim_run")
+    async def weblab_sim_run(request: Request):
+        def act(b):
+            tutor.record_sim_run(b.get("learner"), b.get("card_id"), b.get("code"))
+            return {"ok": True}
+        return await tutor_call(request, act)
+
+    @app.post("/api/weblab/work")
+    async def weblab_work(request: Request):
+        return await tutor_call(request, lambda b: tutor.load_work(b.get("learner"), b.get("card_id")))
+
+    @app.post("/api/weblab/save")
+    async def weblab_save(request: Request):
+        return await tutor_call(request, lambda b: tutor.save_work(
+            b.get("learner"), b.get("card_id"), b.get("code"), b.get("sim")))
+
+    @app.post("/api/weblab/discard")
+    async def weblab_discard(request: Request):
+        def act(b):
+            tutor.discard_work(b.get("learner"), b.get("card_id"))
+            return {"ok": True}
+        return await tutor_call(request, act)
 
     @app.post("/api/weblab/hint")
     async def weblab_hint(request: Request):

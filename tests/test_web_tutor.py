@@ -9,14 +9,14 @@ from sprout.web.tutor_api import MAX_SERIAL_LINES, BadRequest, WebTutor, card_vi
 
 
 @pytest.fixture
-def web(cards, make_tutor):
+def web(cards, make_tutor, tmp_path):
     tutors = {}
 
     def make(learner):
         tutors[learner] = make_tutor(learner=learner)
         return tutors[learner]
 
-    w = WebTutor(cards, make)
+    w = WebTutor(cards, make, tmp_path / "data")
     w.tutors = tutors
     return w
 
@@ -103,3 +103,33 @@ def test_card_view_never_includes_the_reference(cards):
         view = json.dumps(card_view(c))
         assert c.reference.read_text(encoding="utf-8").strip()[:80] not in view
         assert [s["id"] for s in card_view(c)["steps"]] == [s.id for s in c.card.steps]
+
+
+def test_simulator_pass_does_not_complete_the_card(web, cards):
+    ref = cards["c01_pump_light"].reference.read_text(encoding="utf-8")
+    web.record_compile("l_web7", "c01_pump_light", ref, CompileResult(True))
+    r = web.check("l_web7", "c01_pump_light", ref, ["PUMP ON", "PUMP OFF"] * 3, source="sim")
+    assert r["all_passed"] and r["source"] == "sim" and not r["completes_card"]
+    prog = web.tutors["l_web7"].progress.load("l_web7")
+    assert "c01_pump_light" not in prog.cards or prog.cards["c01_pump_light"].status != "completed"
+    log = [json.loads(x) for x in web.tutors["l_web7"].logger.path.read_text(encoding="utf-8").splitlines()]
+    assert next(e for e in log if e["event_type"] == "check_result")["detail"]["source"] == "sim"
+    board = web.check("l_web7", "c01_pump_light", ref, ["PUMP ON", "PUMP OFF"] * 3, source="board")
+    assert board["completes_card"]
+    assert web.tutors["l_web7"].progress.load("l_web7").cards["c01_pump_light"].status == "completed"
+    with pytest.raises(BadRequest):
+        web.check("l_web7", "c01_pump_light", ref, [], source="phone")
+
+
+def test_work_is_saved_loaded_and_discarded(web):
+    assert web.load_work("l_web8", "c01_pump_light") == {"code": None, "sim": None}
+    sim = {"parts": {"led": {"x": 510, "y": 152, "flipped": False}}, "wires": [["pin:D8:6", "bb:5:a"]]}
+    web.save_work("l_web8", "c01_pump_light", code="void setup(){}\nvoid loop(){}", sim=sim)
+    got = web.load_work("l_web8", "c01_pump_light")
+    assert got["code"].startswith("void setup") and got["sim"] == sim
+    web.discard_work("l_web8", "c01_pump_light")
+    assert web.load_work("l_web8", "c01_pump_light") == {"code": None, "sim": None}
+    with pytest.raises(BadRequest):
+        web.save_work("l_web8", "c01_pump_light", sim={"x": "y" * 30_000})
+    with pytest.raises(BadRequest):
+        web.save_work("../evil", "c01_pump_light", code="x")

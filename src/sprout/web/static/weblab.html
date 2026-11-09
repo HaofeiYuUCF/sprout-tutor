@@ -6,16 +6,21 @@
 <title>SPROUT Web Lab</title>
 <link rel="stylesheet" href="/weblab/static/weblab.css">
 </head>
-<body>
+<body class="mode-sim">
 <header class="bar">
   <div class="brand">SPROUT <span>Web Lab</span></div>
   <div class="tag">Test build &middot; this computer only</div>
+  <span class="spacer"></span>
+  <div class="mode-switch" role="tablist" aria-label="Where your sketch runs">
+    <button id="mode-sim" role="tab" aria-selected="true">Simulate</button>
+    <button id="mode-board" role="tab" aria-selected="false">Real board</button>
+  </div>
 </header>
 
 <main>
-  <section id="unsupported" class="notice warn" hidden>
+  <section id="unsupported" class="notice warn board-only" hidden>
     This browser cannot talk to USB boards. Open this page in <strong>Google Chrome</strong> or
-    <strong>Microsoft Edge</strong> on a laptop or Chromebook.
+    <strong>Microsoft Edge</strong> on a laptop or Chromebook. The simulator still works here.
   </section>
   <section id="no-compiler" class="notice warn" hidden>
     The server cannot compile yet: arduino-cli is missing. Run
@@ -23,6 +28,7 @@
   </section>
 
   <div class="grid">
+    <!-- ================= card and tutor ================= -->
     <section class="panel tutor" aria-label="Card and tutor">
       <div class="panel-head">
         <span class="label">Card</span>
@@ -34,14 +40,16 @@
         <div id="card-picker" class="picker"></div>
       </div>
       <div id="card-body" class="card-body" hidden>
-        <div class="card-nav">
-          <button id="btn-back" class="small">&larr; Back to cards</button>
+        <div class="card-nav actions">
+          <button id="btn-back" class="small" title="Your work is saved; you can come back to it">&larr; Back to cards</button>
+          <button id="btn-restart" class="small">Start over</button>
         </div>
-        <div id="back-confirm" class="confirm" role="alert" hidden>
-          <span>Leave this card? Your changes to the code will be discarded.</span>
+        <div id="restart-confirm" class="confirm" role="alert" hidden>
+          <span>Start this card over? Your code and wiring for this card will be deleted, and the
+            starter code comes back.</span>
           <div class="actions">
-            <button id="btn-discard" class="small danger">Discard and go back</button>
-            <button id="btn-stay" class="small">Keep working</button>
+            <button id="btn-restart-yes" class="small danger">Delete and start over</button>
+            <button id="btn-restart-no" class="small">Cancel</button>
           </div>
         </div>
         <h2 id="card-title"></h2>
@@ -50,6 +58,7 @@
         <div id="card-steps" class="steps"></div>
         <div class="actions">
           <button id="btn-check">Check my work</button>
+          <span id="check-source" class="muted"></span>
         </div>
         <div id="check-out" class="checks" aria-live="polite"></div>
         <div class="panel-head tutor-head">
@@ -66,21 +75,29 @@
       </div>
     </section>
 
+    <!-- ================= editor ================= -->
     <section class="panel editor">
       <div class="panel-head">
         <label for="sketch">Sketch</label>
         <select id="sketch"></select>
+        <span class="spacer"></span>
+        <span id="save-status" class="muted save-status"></span>
       </div>
-      <textarea id="code" spellcheck="false" autocomplete="off" aria-label="Sketch code"></textarea>
+      <div class="code-wrap">
+        <pre id="gutter" class="gutter" aria-hidden="true">1</pre>
+        <textarea id="code" spellcheck="false" autocomplete="off" wrap="off" aria-label="Sketch code"></textarea>
+      </div>
       <div class="actions">
         <button id="btn-compile">Compile</button>
-        <button id="btn-upload" class="primary" disabled>Upload to board</button>
+        <button id="btn-upload" class="primary board-only" disabled>Upload to board</button>
+        <button id="btn-sim-run-2" class="primary sim-only">Run in simulator</button>
         <span id="size" class="muted"></span>
       </div>
       <div id="compile-out" class="out" aria-live="polite"></div>
     </section>
 
-    <section class="panel board">
+    <!-- ================= right column, real board mode ================= -->
+    <section class="panel board board-only">
       <div class="panel-head">
         <span class="label">Board</span>
         <span id="board-status" class="pill off">not connected</span>
@@ -103,41 +120,47 @@
       </div>
       <pre id="monitor" class="monitor" aria-live="off"></pre>
     </section>
+
+    <!-- ================= right column, simulate mode ================= -->
+    <section class="panel sim sim-only" aria-label="Simulator">
+      <div class="panel-head">
+        <span class="label">Simulator</span>
+        <span id="sim-scenario" class="muted">LED test</span>
+        <span class="spacer"></span>
+        <button id="sim-run" class="primary">Run in simulator</button>
+        <button id="sim-stop" disabled>Stop</button>
+        <button id="sim-delete" disabled>Delete wire</button>
+        <button id="sim-reset">Clear board</button>
+        <button id="sim-example" hidden>Show example wiring</button>
+      </div>
+      <p class="muted sim-help">Drag the parts onto the breadboard. To add a wire, click a pin or hole,
+        then click another. Double-click the LED or the TMP36 to turn it around. Click a wire and
+        press Delete to remove it. This is a simplified simulation: the real board has the final say.</p>
+      <div class="sim-wrap"><svg id="sim-svg" viewBox="0 0 960 440" role="img"
+        aria-label="Arduino UNO and breadboard"></svg></div>
+      <label id="sim-temp-box" class="sim-temp" hidden>
+        <span>Air temperature around the TMP36</span>
+        <input type="range" id="sim-temp" min="0" max="50" step="0.5" value="24">
+        <span id="sim-temp-val">24 °C</span>
+      </label>
+      <div class="sim-bar"><span id="sim-status" class="muted"></span><span id="sim-hover" class="sim-hover"></span></div>
+    </section>
+
+    <section class="panel simout sim-only" aria-label="Simulator feedback and serial output">
+      <div class="sim-bottom">
+        <div class="sim-feedback-box">
+          <span class="label">Wiring</span>
+          <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>
+        </div>
+        <div class="sim-serial-box">
+          <span class="label">Simulated serial output</span>
+          <pre id="sim-serial" class="monitor sim-serial"></pre>
+        </div>
+      </div>
+    </section>
   </div>
 
-  <section class="panel sim" aria-label="Simulator">
-    <div class="panel-head">
-      <span class="label">Simulator</span>
-      <span id="sim-scenario" class="muted">LED test</span>
-      <span class="muted">&middot; no board needed</span>
-      <span class="spacer"></span>
-      <button id="sim-run" class="primary">Run in simulator</button>
-      <button id="sim-stop" disabled>Stop</button>
-      <button id="sim-delete" disabled>Delete wire</button>
-      <button id="sim-reset">Reset</button>
-      <button id="sim-example" hidden>Show example wiring</button>
-    </div>
-    <p class="muted sim-help">The parts follow the card you choose. Drag them onto the breadboard. To add
-      a wire, click a pin or hole, then click another. Double-click the LED or the TMP36 to turn it
-      around. Click a wire and press Delete to remove it. The simulator runs the sketch in the editor.</p>
-    <div class="sim-wrap"><svg id="sim-svg" viewBox="0 0 960 440" role="img"
-      aria-label="Arduino UNO and breadboard"></svg></div>
-    <label id="sim-temp-box" class="sim-temp" hidden>
-      <span>Air temperature around the TMP36</span>
-      <input type="range" id="sim-temp" min="0" max="50" step="0.5" value="24">
-      <span id="sim-temp-val">24 °C</span>
-    </label>
-    <div class="sim-bar"><span id="sim-status" class="muted"></span><span id="sim-hover" class="sim-hover"></span></div>
-    <div class="sim-bottom">
-      <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>
-      <div class="sim-serial-box">
-        <span class="label">Simulated serial output</span>
-        <pre id="sim-serial" class="monitor sim-serial"></pre>
-      </div>
-    </div>
-  </section>
-
-  <details class="panel log">
+  <details class="panel log board-only">
     <summary>Upload trials this session <span id="trial-count" class="muted"></span></summary>
     <p class="muted">Each upload is also saved on this computer in
       <code>data/weblab/upload_trials.jsonl</code> (success, error type, time, USB chip ID; no

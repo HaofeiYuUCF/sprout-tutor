@@ -217,7 +217,7 @@ class Event(Strict):
     event_type: Literal[
         "session_start", "card_open", "code_edit", "compile", "upload", "serial_snapshot",
         "check_result", "hint_request", "hint_shown", "answered_question", "photo_check",
-        "board_status", "card_leave",
+        "board_status", "card_leave", "sim_run", "work_discard",
     ]
     card_id: str | None = None
     card_version: int | None = None

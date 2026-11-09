@@ -30,8 +30,7 @@ code, textarea, pre, .out { font-family: "Cascadia Mono", Consolas, "SF Mono", m
 .brand span { color: var(--fg); font-weight: 500; letter-spacing: 0; }
 .tag { color: var(--muted); font-size: 13px; }
 main { padding: 16px max(16px, env(safe-area-inset-left)); display: grid; gap: 16px; }
-.grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
-@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.grid { display: grid; gap: 16px; }
 .panel {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   padding: 14px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
@@ -79,13 +78,51 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .log table { border-collapse: collapse; width: 100%; font-size: 13px; }
 .log th, .log td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); }
 .trace { font-size: 12px; max-height: 260px; overflow: auto; background: var(--code-bg); padding: 8px; border-radius: 6px; }
-/* three columns: card+tutor | editor | board */
-.grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr); }
+/* ---------- layout by mode ----------
+   Real board: card+tutor | editor | board.   Simulate: editor | simulator, with the tutor and the
+   simulator's feedback underneath, so code and circuit are side by side. */
+.tutor { grid-area: tutor; }
+.editor { grid-area: editor; }
+.board, .sim { grid-area: right; }
+.simout { grid-area: below; }
+body.mode-board .grid { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr);
+  grid-template-areas: "tutor editor right"; }
+body.mode-sim .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+  grid-template-areas: "editor right" "tutor below"; align-items: start; }
+body.mode-sim .sim-only, body.mode-board .board-only { display: flex; }
+body.mode-sim .board-only, body.mode-board .sim-only { display: none !important; }
+button.sim-only, button.board-only { display: inline-block; }
 @media (max-width: 1280px) {
-  .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
-  .grid .tutor { grid-column: 1 / -1; order: 3; }
+  body.mode-board .grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "editor right" "tutor tutor"; }
 }
-@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1000px) {
+  body.mode-sim .grid { grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "editor" "right" "below" "tutor"; }
+}
+@media (max-width: 860px) {
+  body.mode-board .grid { grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "editor" "right" "tutor"; }
+}
+.bar .spacer { flex: 1; }
+.mode-switch { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mode-switch button { border: 0; border-radius: 0; padding: 6px 16px; background: var(--panel); }
+.mode-switch button[aria-selected="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+/* ---------- editor with line numbers ---------- */
+.code-wrap { display: flex; border: 1px solid var(--line); border-radius: 6px; background: var(--code-bg);
+  overflow: hidden; min-height: 380px; }
+.gutter { margin: 0; padding: 10px 8px 10px 10px; min-width: 3.2ch; text-align: right; color: var(--muted);
+  font-size: 13.5px; line-height: 1.45; user-select: none; overflow: hidden; border-right: 1px solid var(--line);
+  white-space: pre; }
+.gutter .err-line { color: var(--err); font-weight: 700; }
+.code-wrap textarea#code { border: 0; border-radius: 0; min-height: 380px; resize: vertical; white-space: pre;
+  overflow: auto; flex: 1; min-width: 0; }
+.code-wrap textarea#code:focus { outline: none; }
+.code-wrap:focus-within { border-color: var(--accent); }
+.out .err.jump { cursor: pointer; text-decoration: underline dotted; }
+.save-status { font-size: 12px; }
+.save-status.bad { color: var(--err); }
+.sim-feedback-box { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .card-body { display: flex; flex-direction: column; gap: 10px; }
 .card-body h2 { margin: 0; font-size: 18px; text-wrap: balance; }
 .ag { margin: 0; color: var(--muted); font-size: 13.5px; }

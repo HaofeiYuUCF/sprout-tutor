@@ -189,6 +189,37 @@ function init() {
     p.legs = null;
   }
 
+  // ------------------------------------------------------------------ save / restore
+  /** The student's board as plain JSON (autosaved with their code). */
+  function serialize() {
+    const ps = {};
+    for (const [k, q] of Object.entries(parts)) ps[k] = { x: q.x, y: q.y, flipped: !!q.flipped };
+    return { v: 1, parts: ps, wires: wires.map((w) => [w.a, w.b, w.color]), temp: temperature() };
+  }
+
+  /** Put back a saved board, skipping anything that no longer fits (unknown holes, missing parts). */
+  function applySaved(saved) {
+    if (!saved || typeof saved !== "object") return;
+    for (const [k, q] of Object.entries(saved.parts || {})) {
+      const part = parts[k];
+      if (!part || typeof q.x !== "number" || typeof q.y !== "number") continue;
+      Object.assign(part, { x: q.x, y: q.y, flipped: !!q.flipped });
+      part.legs = legTerms(part);
+    }
+    wires = (saved.wires || []).filter((w) => Array.isArray(w) && terms.has(w[0]) && terms.has(w[1]))
+      .map(([a, b, color]) => ({ a, b, color: typeof color === "string" ? color : wireColor(a, b) }));
+    if (typeof saved.temp === "number" && $("sim-temp")) {
+      $("sim-temp").value = String(saved.temp);
+      $("sim-temp-val").textContent = `${temperature()} °C`;
+    }
+    drawParts(); drawWires(); refresh(true);
+  }
+
+  /** Tell the page that the student changed the board (the page autosaves it). */
+  function notifyChange() {
+    document.dispatchEvent(new CustomEvent("sprout:simchange", { detail: serialize() }));
+  }
+
   // ------------------------------------------------------------------ wires
   let wires = [];
   let pending = null;      // terminal id where a new wire starts
@@ -375,6 +406,7 @@ function init() {
     window.SproutLab.resetSerial();
     $("sim-stop").disabled = false;
     setStatus("Running your program on a simulated UNO.");
+    if (window.SproutLab.simStarted) window.SproutLab.simStarted();
     run.raf = setTimeout(() => frame(performance.now()), 0);
   }
 
@@ -526,6 +558,7 @@ function init() {
         pending = null;
         drawWires();
         refresh(true);
+        notifyChange();
       }
       drawRubber(ev);
       return;
@@ -552,10 +585,12 @@ function init() {
 
   svg.addEventListener("pointerup", () => {
     if (!drag) return;
-    if (drag.moved) snap(drag.p);
+    const moved = drag.moved;
+    if (moved) snap(drag.p);
     drag = null;
     drawParts();
     refresh(true);
+    if (moved) notifyChange();
   });
 
   svg.addEventListener("dblclick", (ev) => {
@@ -565,6 +600,7 @@ function init() {
     p.flipped = !p.flipped;
     drawParts();
     refresh(true);
+    notifyChange();
   });
 
   function drawRubber(ev) {
@@ -581,6 +617,7 @@ function init() {
     selected = null;
     drawWires();
     refresh(true);
+    notifyChange();
   }
 
   document.addEventListener("keydown", (ev) => {
@@ -608,7 +645,7 @@ function init() {
     resetParts();
     drawParts(); drawWires(); refresh(true);
   }
-  $("sim-reset").addEventListener("click", resetAll);
+  $("sim-reset").addEventListener("click", () => { resetAll(); notifyChange(); });
 
   /** Switch the parts to match a card ({cardId, title, parts: ["1 × TMP36 temperature sensor", ...]}). */
   function setScenario(card) {
@@ -623,12 +660,16 @@ function init() {
     $("sim-scenario").textContent = `${scenario.title} · parts: ${scenario.kinds.map((k) => NAMES[k]).join(", ")}`;
     $("sim-temp-box").hidden = !scenario.kinds.includes("tmp");
     resetAll();
+    if (card && card.sim) applySaved(card.sim);
   }
   document.addEventListener("sprout:card", (ev) => setScenario(ev.detail));
   $("sim-temp").addEventListener("input", () => {
     $("sim-temp-val").textContent = `${temperature()} °C`;
     refresh(true);
   });
+  $("sim-temp").addEventListener("change", notifyChange);
+  // Leaving Simulate mode stops the simulated board.
+  document.addEventListener("sprout:mode", (ev) => { if (ev.detail !== "sim" && run) stop(); });
   const example = $("sim-example");
   if (example) {
     example.addEventListener("click", () => {
@@ -654,6 +695,7 @@ function init() {
         parts.tmp.legs = legTerms(parts.tmp);
       }
       drawParts(); drawWires(); refresh(true);
+      notifyChange();
     });
   }
 
@@ -662,15 +704,16 @@ function init() {
     state: () => ({ wires: wires.map((w) => [w.a, w.b]), kinds: scenario.kinds, running: !!run,
       lit: !!(parts.led && parts.led.lit), tmp: parts.tmp ? { ...parts.tmp } : null }),
     evaluate: () => evaluate(pinLevel),
+    serialize: () => serialize(),
     place: (kind, holeId, flipped) => {
       const t = terms.get(holeId);
       Object.assign(parts[kind], { x: t.x, y: t.y });
       if (flipped !== undefined) parts[kind].flipped = flipped;
       snap(parts[kind]);
-      drawParts(); refresh(true);
+      drawParts(); refresh(true); notifyChange();
       return !!parts[kind].legs;
     },
-    wire: (a, b) => { wires.push({ a, b, color: wireColor(a, b) }); drawWires(); refresh(true); },
+    wire: (a, b) => { wires.push({ a, b, color: wireColor(a, b) }); drawWires(); refresh(true); notifyChange(); },
   };
 
   setScenario(window.SproutLab && window.SproutLab.currentCard ? window.SproutLab.currentCard() : null);
