@@ -246,6 +246,7 @@ class Event(Strict):
 
 class CardProgress(Strict):
     status: Literal["not_started", "in_progress", "completed"] = "not_started"
+    sim_passed: bool = False  # all checks passed in the simulator (the real board completes the card)
     checks_passed: list[str] = []
     highest_hint_step: int = 0
     hints_curated: int = 0

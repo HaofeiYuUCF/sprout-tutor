@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: c01_pump_light
 title: Pump status light
 version: 1
@@ -29,7 +29,9 @@ tinkercad:
 steps:
   - id: simulate
     kind: simulate
-    text: Build and run the circuit in Tinkercad first. Paste your share link when it blinks.
+    text: >-
+      Wire the circuit in the simulator, then press "Test my wiring". The LED should
+      blink. If it does not, read the wiring tips next to the board.
   - id: build
     kind: build
     text: >-
@@ -42,7 +44,9 @@ steps:
       print "PUMP ON", wait one second, turn it off, print "PUMP OFF", wait one second.
   - id: run
     kind: run
-    text: Compile and upload. The LED should blink and the serial log should alternate PUMP ON / PUMP OFF.
+    text: >-
+      Send your code to the board. The LED should blink, and the messages from the board
+      should switch between PUMP ON and PUMP OFF.
   - id: reflect
     kind: reflect
     text: >-

@@ -6,169 +6,233 @@
 <title>SPROUT Web Lab</title>
 <link rel="stylesheet" href="/weblab/static/weblab.css">
 </head>
-<body class="mode-sim">
+<body data-screen="signin">
 <header class="bar">
   <div class="brand">SPROUT <span>Web Lab</span></div>
-  <div class="tag">Test build &middot; this computer only</div>
+  <div id="test-tag" class="tag" hidden>Test build &middot; this computer only</div>
   <span class="spacer"></span>
-  <div class="mode-switch" role="tablist" aria-label="Where your sketch runs">
-    <button id="mode-sim" role="tab" aria-selected="true">Simulate</button>
-    <button id="mode-board" role="tab" aria-selected="false">Real board</button>
-  </div>
+  <div id="who" class="who" hidden>Student <b id="who-id"></b> <button id="btn-switch" class="link">Not you?</button></div>
 </header>
 
 <main>
-  <section id="unsupported" class="notice warn board-only" hidden>
-    This browser cannot talk to USB boards. Open this page in <strong>Google Chrome</strong> or
-    <strong>Microsoft Edge</strong> on a laptop or Chromebook. The simulator still works here.
-  </section>
   <section id="no-compiler" class="notice warn" hidden>
-    The server cannot compile yet: arduino-cli is missing. Run
-    <code>scripts\setup_arduino_cli.ps1</code> and restart <code>sprout run</code>.
+    The server cannot check code yet: arduino-cli is missing. Ask your instructor.
   </section>
 
-  <div class="grid">
-    <!-- ================= card and tutor ================= -->
-    <section class="panel tutor" aria-label="Card and tutor">
-      <div class="panel-head">
-        <span class="label">Card</span>
-        <span class="spacer"></span>
-        <span id="learner" class="pill off" title="Anonymous learner ID"></span>
+  <!-- ===================== 1. sign in ===================== -->
+  <section id="screen-signin" class="screen narrow">
+    <h1>Welcome to SPROUT</h1>
+    <p>Type the student code your instructor gave you. It looks like <code>l_ab12</code>.</p>
+    <form id="signin-form" class="signin-form" autocomplete="off">
+      <input id="signin-code" type="text" aria-label="Student code" placeholder="l_ab12" spellcheck="false">
+      <button class="primary big">Start</button>
+    </form>
+    <p id="signin-err" class="err-text" hidden></p>
+    <p class="muted">Your code keeps your work separate from everyone else's. We never ask for your name.</p>
+    <button id="signin-demo" class="link" hidden>Use a practice code (test mode)</button>
+  </section>
+
+  <!-- ===================== 2. choose a card ===================== -->
+  <section id="screen-cards" class="screen" hidden>
+    <div>
+      <h1>Choose a card</h1>
+      <p class="muted">Each card is one small project. You wire it in the simulator, write the code, then build it on your own board.</p>
+    </div>
+    <div id="card-tiles" class="tiles"></div>
+    <div class="panel warmup">
+      <div>
+        <h2>First time with your board?</h2>
+        <p class="muted">Check that your UNO works before you start a card. No parts needed.</p>
       </div>
-      <div id="card-empty" class="card-empty">
-        <p class="muted">Pick a card to work on with the tutor:</p>
-        <div id="card-picker" class="picker"></div>
+      <span class="spacer"></span>
+      <button id="btn-warmup">Check that my board works</button>
+    </div>
+    <details id="practice" class="panel" hidden>
+      <summary>Practice sketches with planted mistakes (test mode)</summary>
+      <div id="practice-list" class="actions"></div>
+    </details>
+  </section>
+
+  <!-- ===================== 3. one card ===================== -->
+  <section id="screen-card" class="screen" hidden>
+    <div class="card-top">
+      <button id="btn-back" class="small" title="Your work is saved">&larr; All cards</button>
+      <h1 id="card-title"></h1>
+      <span class="spacer"></span>
+      <span id="save-status" class="save-status"></span>
+      <button id="btn-restart" class="small">Start over</button>
+    </div>
+    <div id="restart-confirm" class="confirm" role="alert" hidden>
+      <span>Start this card over? Your code, wiring and answers for this card will be deleted.</span>
+      <div class="actions">
+        <button id="btn-restart-yes" class="small danger">Delete and start over</button>
+        <button id="btn-restart-no" class="small">Cancel</button>
       </div>
-      <div id="card-body" class="card-body" hidden>
-        <div class="card-nav actions">
-          <button id="btn-back" class="small" title="Your work is saved; you can come back to it">&larr; Back to cards</button>
-          <button id="btn-restart" class="small">Start over</button>
+    </div>
+    <ol id="stepbar" class="stepbar" aria-label="Steps"></ol>
+    <div class="step-head">
+      <h2 id="step-title"></h2>
+      <p id="step-text"></p>
+      <ul id="step-tips" class="step-tips"></ul>
+    </div>
+
+    <div class="work">
+      <!-- intro -->
+      <section class="panel r-info">
+        <p id="card-ag"></p>
+        <div class="facts">
+          <div><span class="label">You will learn to</span><ul id="card-objectives"></ul></div>
+          <div><span class="label">Parts in your kit</span><ul id="card-parts"></ul></div>
         </div>
-        <div id="restart-confirm" class="confirm" role="alert" hidden>
-          <span>Start this card over? Your code and wiring for this card will be deleted, and the
-            starter code comes back.</span>
-          <div class="actions">
-            <button id="btn-restart-yes" class="small danger">Delete and start over</button>
-            <button id="btn-restart-no" class="small">Cancel</button>
-          </div>
-        </div>
-        <h2 id="card-title"></h2>
-        <p id="card-ag" class="ag"></p>
         <ul id="card-safety" class="safety"></ul>
-        <div id="card-steps" class="steps"></div>
+      </section>
+
+      <!-- code editor -->
+      <section class="panel r-editor">
+        <div class="panel-head">
+          <span class="label">Your code</span>
+          <span id="practice-note" class="muted" hidden>Practice sketch: not saved</span>
+        </div>
+        <div class="code-wrap">
+          <pre id="gutter" class="gutter" aria-hidden="true">1</pre>
+          <textarea id="code" spellcheck="false" autocomplete="off" wrap="off" aria-label="Your code"></textarea>
+        </div>
         <div class="actions">
-          <button id="btn-check">Check my work</button>
+          <button id="btn-compile">Check my code</button>
+          <span id="size" class="muted"></span>
+        </div>
+        <div id="compile-out" class="out" aria-live="polite"></div>
+      </section>
+
+      <section class="panel r-todo">
+        <span class="label">To do in this sketch</span>
+        <ul id="todo-list" class="todo-list"></ul>
+        <p id="todo-help" class="muted">Replace each line that starts with <code>// TODO</code> with your code. The list ticks itself off as you go.</p>
+      </section>
+
+      <!-- simulator -->
+      <section class="panel r-sim" aria-label="Simulator">
+        <div class="panel-head">
+          <span class="label">Simulator</span>
+          <span id="sim-scenario" class="muted"></span>
+          <span class="spacer"></span>
+          <button id="sim-test" class="primary only-wire">Test my wiring</button>
+          <button id="sim-run" class="primary only-simrun">Run my code</button>
+          <button id="sim-stop" disabled>Stop</button>
+          <button id="sim-delete" disabled>Delete wire</button>
+          <button id="sim-reset">Clear board</button>
+          <button id="sim-example" hidden>Example wiring</button>
+        </div>
+        <div class="sim-wrap"><svg id="sim-svg" viewBox="0 0 960 400" role="img"
+          aria-label="Arduino UNO and breadboard"></svg></div>
+        <label id="sim-temp-box" class="sim-temp" hidden>
+          <span>Air temperature around the sensor</span>
+          <input type="range" id="sim-temp" min="0" max="50" step="0.5" value="24">
+          <span id="sim-temp-val">24 °C</span>
+        </label>
+        <div class="sim-bar"><span id="sim-status" class="muted"></span><span id="sim-hover" class="sim-hover"></span></div>
+      </section>
+
+      <section class="panel r-simside">
+        <span class="label">Wiring tips</span>
+        <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>
+        <span class="label">Messages from the simulated board</span>
+        <pre id="sim-serial" class="monitor sim-serial"></pre>
+      </section>
+
+      <!-- check my work (simulator or real board) -->
+      <section class="panel r-check">
+        <div class="actions">
+          <button id="btn-check" class="primary">Check my work</button>
           <span id="check-source" class="muted"></span>
         </div>
         <div id="check-out" class="checks" aria-live="polite"></div>
-        <div class="panel-head tutor-head">
-          <span class="label">Tutor</span>
-          <span class="spacer"></span>
-          <span id="llm-mode" class="muted"></span>
+      </section>
+
+      <!-- build on the real board -->
+      <section class="panel r-buildref">
+        <div class="build-grid">
+          <div>
+            <span class="label">Your wiring from the simulator</span>
+            <div id="buildref" class="buildref-wrap"></div>
+            <p id="buildref-empty" class="muted" hidden>You have not wired this card in the simulator yet. Go back to step 2 first, or follow the instructions on the right.</p>
+          </div>
+          <div class="facts-col">
+            <span class="label">Before you plug in USB</span>
+            <ul id="build-checklist" class="todo-list"></ul>
+            <ul id="build-safety" class="safety"></ul>
+          </div>
         </div>
-        <textarea id="question" rows="3"
-          placeholder="What do you see? What did you expect? (optional)"></textarea>
-        <div class="actions">
-          <button id="btn-hint" class="primary">Get a hint</button>
-        </div>
-        <div id="hints" class="hints" aria-live="polite"></div>
-      </div>
-    </section>
+      </section>
 
-    <!-- ================= editor ================= -->
-    <section class="panel editor">
-      <div class="panel-head">
-        <label for="sketch">Sketch</label>
-        <select id="sketch"></select>
-        <span class="spacer"></span>
-        <span id="save-status" class="muted save-status"></span>
-      </div>
-      <div class="code-wrap">
-        <pre id="gutter" class="gutter" aria-hidden="true">1</pre>
-        <textarea id="code" spellcheck="false" autocomplete="off" wrap="off" aria-label="Sketch code"></textarea>
-      </div>
-      <div class="actions">
-        <button id="btn-compile">Compile</button>
-        <button id="btn-upload" class="primary board-only" disabled>Upload to board</button>
-        <button id="btn-sim-run-2" class="primary sim-only">Run in simulator</button>
-        <span id="size" class="muted"></span>
-      </div>
-      <div id="compile-out" class="out" aria-live="polite"></div>
-    </section>
+      <!-- real board -->
+      <section class="panel r-board">
+        <span class="label">Your board</span>
+        <section id="unsupported" class="notice warn" hidden>
+          This browser cannot talk to USB boards. Use <strong>Google Chrome</strong> or
+          <strong>Microsoft Edge</strong> on a laptop or Chromebook.
+        </section>
+        <ol class="wizard">
+          <li><div class="body"><b>Plug your UNO into the computer</b><span class="muted">Use the USB cable from your kit. A green light on the board turns on.</span></div></li>
+          <li><div class="body"><b>Connect</b>
+            <span class="muted">A list opens. Choose the line that says <b>Arduino Uno</b>, then click <b>Connect</b>.</span>
+            <div class="actions"><button id="btn-connect">Connect my board</button><button id="btn-disconnect" class="small" disabled>Disconnect</button></div>
+            <span id="board-status" class="pill off">not connected</span></div></li>
+          <li><div class="body"><b>Send your code</b>
+            <span class="muted">The lights on the board flicker while it receives the code.</span>
+            <div class="actions"><button id="btn-upload" class="primary" disabled>Send to my board</button></div>
+            <div class="progress" hidden><div id="bar"></div></div>
+            <div id="upload-out" class="out" aria-live="polite"></div></div></li>
+        </ol>
+        <span class="label">Messages from your board</span>
+        <pre id="monitor" class="monitor" aria-live="off"></pre>
+        <details class="advanced">
+          <summary>Advanced</summary>
+          <div class="actions">
+            <label class="check">Speed (baud)
+              <select id="baud" aria-label="Baud rate">
+                <option>9600</option><option>19200</option><option>57600</option><option>115200</option>
+              </select></label>
+            <label class="check"><input type="checkbox" id="all-ports"> show all USB devices</label>
+            <button id="btn-clear" class="small">Clear messages</button>
+          </div>
+          <details class="log">
+            <summary>Upload log <span id="trial-count"></span></summary>
+            <table><thead><tr><th>#</th><th>Result</th><th>Time</th><th>Bytes</th><th>USB chip</th></tr></thead>
+              <tbody id="trials"></tbody></table>
+          </details>
+        </details>
+      </section>
 
-    <!-- ================= right column, real board mode ================= -->
-    <section class="panel board board-only">
-      <div class="panel-head">
-        <span class="label">Board</span>
-        <span id="board-status" class="pill off">not connected</span>
-      </div>
-      <div class="actions">
-        <button id="btn-connect">Connect board</button>
-        <button id="btn-disconnect" disabled>Disconnect</button>
-        <label class="check"><input type="checkbox" id="all-ports"> show all ports</label>
-      </div>
-      <div class="progress" hidden><div id="bar"></div></div>
-      <div id="upload-out" class="out" aria-live="polite"></div>
+      <!-- reflect -->
+      <section class="panel r-reflect">
+        <label for="reflection" class="label">Your answer</label>
+        <textarea id="reflection" placeholder="Write a few sentences. There is no single right answer."></textarea>
+        <p class="muted">Saved automatically. Talk about it with your partner or a peer mentor.</p>
+      </section>
+    </div>
 
-      <div class="panel-head monitor-head">
-        <span class="label">Serial monitor</span>
-        <span class="spacer"></span>
-        <select id="baud" aria-label="Baud rate">
-          <option>9600</option><option>19200</option><option>57600</option><option>115200</option>
-        </select>
-        <button id="btn-clear" class="small">Clear</button>
-      </div>
-      <pre id="monitor" class="monitor" aria-live="off"></pre>
-    </section>
-
-    <!-- ================= right column, simulate mode ================= -->
-    <section class="panel sim sim-only" aria-label="Simulator">
-      <div class="panel-head">
-        <span class="label">Simulator</span>
-        <span id="sim-scenario" class="muted">LED test</span>
-        <span class="spacer"></span>
-        <button id="sim-run" class="primary">Run in simulator</button>
-        <button id="sim-stop" disabled>Stop</button>
-        <button id="sim-delete" disabled>Delete wire</button>
-        <button id="sim-reset">Clear board</button>
-        <button id="sim-example" hidden>Show example wiring</button>
-      </div>
-      <p class="muted sim-help">Drag the parts onto the breadboard. To add a wire, click a pin or hole,
-        then click another. Double-click the LED or the TMP36 to turn it around. Click a wire and
-        press Delete to remove it. This is a simplified simulation: the real board has the final say.</p>
-      <div class="sim-wrap"><svg id="sim-svg" viewBox="0 0 960 440" role="img"
-        aria-label="Arduino UNO and breadboard"></svg></div>
-      <label id="sim-temp-box" class="sim-temp" hidden>
-        <span>Air temperature around the TMP36</span>
-        <input type="range" id="sim-temp" min="0" max="50" step="0.5" value="24">
-        <span id="sim-temp-val">24 °C</span>
-      </label>
-      <div class="sim-bar"><span id="sim-status" class="muted"></span><span id="sim-hover" class="sim-hover"></span></div>
-    </section>
-
-    <section class="panel simout sim-only" aria-label="Simulator feedback and serial output">
-      <div class="sim-bottom">
-        <div class="sim-feedback-box">
-          <span class="label">Wiring</span>
-          <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>
-        </div>
-        <div class="sim-serial-box">
-          <span class="label">Simulated serial output</span>
-          <pre id="sim-serial" class="monitor sim-serial"></pre>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <details class="panel log board-only">
-    <summary>Upload trials this session <span id="trial-count" class="muted"></span></summary>
-    <p class="muted">Each upload is also saved on this computer in
-      <code>data/weblab/upload_trials.jsonl</code> (success, error type, time, USB chip ID; no
-      names or code).</p>
-    <table><thead><tr><th>#</th><th>Result</th><th>Time</th><th>Bytes</th><th>USB chip</th></tr></thead>
-      <tbody id="trials"></tbody></table>
-  </details>
+    <div class="step-nav">
+      <button id="btn-prev">&larr; Back</button>
+      <span class="spacer"></span>
+      <button id="btn-next" class="primary big">Next</button>
+    </div>
+  </section>
 </main>
+
+<button id="help-fab" class="help-fab primary" hidden aria-controls="help">Need help?</button>
+<aside id="help" class="drawer" aria-label="Tutor" hidden>
+  <div class="panel-head">
+    <h2>Tutor</h2>
+    <span id="llm-mode" class="muted"></span>
+    <span class="spacer"></span>
+    <button id="help-close" class="small" aria-label="Close the tutor">Close</button>
+  </div>
+  <p class="muted">Tell the tutor what you see and what you expected. It gives a hint, not the answer. Try the hint, then ask again if you are still stuck.</p>
+  <textarea id="question" placeholder="Example: The LED stays off, and the messages say PUMP ON."></textarea>
+  <div class="actions"><button id="btn-hint" class="primary">Get a hint</button></div>
+  <div id="hints" class="hints" aria-live="polite"></div>
+</aside>
 
 <script src="/weblab/static/stk500.js"></script>
 <script src="/weblab/static/weblab.js"></script>

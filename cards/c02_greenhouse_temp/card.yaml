@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: c02_greenhouse_temp
 title: Read greenhouse temperature
 version: 1
@@ -28,7 +28,9 @@ tinkercad:
 steps:
   - id: simulate
     kind: simulate
-    text: Build and run the circuit in Tinkercad. Move the temperature slider and watch the serial output.
+    text: >-
+      Wire the sensor in the simulator, then press "Test my wiring". Move the temperature
+      slider and watch the reading change in the messages from the board.
   - id: build
     kind: build
     text: >-
@@ -41,7 +43,9 @@ steps:
       ((volts − 0.5) × 100). Print a line like "raw=153 temp_c=24.8" once a second.
   - id: run
     kind: run
-    text: Upload and watch the plot. Room temperature should read about 20–26 °C. Pinch the sensor and it should rise.
+    text: >-
+      Send your code to the board and watch the messages. Room temperature should read about
+      20–26 °C. Pinch the sensor between your fingers and the reading should rise.
   - id: reflect
     kind: reflect
     text: >-

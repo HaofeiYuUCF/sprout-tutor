@@ -33,7 +33,7 @@ function init() {
     ["A3", 288], ["A4", 304], ["A5", 320]];
   const LEGS = { led: [0, STEP], res: [0, STEP * 4], tmp: [0, STEP, STEP * 2] }; // leg x offsets
   const SPAN = (k) => LEGS[k][LEGS[k].length - 1];
-  const HOME = { led: { x: 70, y: 410 }, res: { x: 140, y: 410 }, tmp: { x: 270, y: 410 } };
+  const HOME = { led: { x: 150, y: 36 }, res: { x: 200, y: 36 }, tmp: { x: 316, y: 36 } }; // parts tray, top left
   const NAMES = { led: "LED", res: "resistor", tmp: "TMP36" };
 
   const terms = new Map();   // id -> { x, y, net, label }
@@ -110,7 +110,7 @@ function init() {
       hole(`rail:${k}:${c}`, x, y, `rail${k}`, `${k[0] === "T" ? "top" : "bottom"} ${k[1]} rail`);
     }
   }
-  el("text", { x: 70, y: 352, class: "tray-label" }, gBoard).textContent = "Parts: drag onto the breadboard";
+  el("text", { x: 20, y: 40, class: "tray-label" }, gBoard).textContent = "Parts:";
 
   // ------------------------------------------------------------------ parts
   let parts = {};
@@ -205,6 +205,7 @@ function init() {
       if (!part || typeof q.x !== "number" || typeof q.y !== "number") continue;
       Object.assign(part, { x: q.x, y: q.y, flipped: !!q.flipped });
       part.legs = legTerms(part);
+      if (!part.legs) Object.assign(part, HOME[k]); // a loose part goes back to the tray
     }
     wires = (saved.wires || []).filter((w) => Array.isArray(w) && terms.has(w[0]) && terms.has(w[1]))
       .map(([a, b, color]) => ({ a, b, color: typeof color === "string" ? color : wireColor(a, b) }));
@@ -361,19 +362,21 @@ function init() {
     return s === PinState.High ? "H" : s === PinState.Low ? "L" : null;
   }
 
-  async function start() {
+  /** Run the student's code, or (test) a built-in program that exercises the wiring. */
+  async function start(test = null) {
     stop();
-    $("sim-run").disabled = true;
-    setStatus("Compiling your sketch…");
+    for (const id of ["sim-run", "sim-test"]) $(id).disabled = true;
+    setStatus(test ? "Preparing the wiring test…" : "Checking your code…");
     let compiled = null;
     try {
-      compiled = await window.SproutLab.compile();
+      compiled = test ? await window.SproutLab.compileCode(test.code) : await window.SproutLab.compile();
     } catch (e) {
-      setStatus(`Could not compile: ${e.message}`);
+      setStatus(`Could not prepare the program: ${e.message}`);
     }
-    $("sim-run").disabled = false;
+    for (const id of ["sim-run", "sim-test"]) $(id).disabled = false;
     if (!compiled) {
-      setStatus("Fix the compile errors shown under the editor, then run again.");
+      setStatus(test ? "The wiring test could not start. Ask your instructor."
+        : "Your code has a problem. See the red message under your code, fix it, then run again.");
       return;
     }
     const image = window.SproutUpload.parseIntelHex(compiled.hex);
@@ -389,7 +392,7 @@ function init() {
     const usart = new AVRUSART(cpu, usart0Config, 16e6);
     const adc = new AVRADC(cpu, adcConfig);
     run = { cpu, portB, portC, portD, usart, adc, driven: new Set(), adcRead: new Set(),
-      startedAt: performance.now(), last: performance.now(), speed: 1 };
+      startedAt: performance.now(), last: performance.now(), speed: 1, test, litSeen: false };
     const readChannel = adc.onADCRead;
     adc.onADCRead = (input) => {
       if (typeof input.channel === "number") run.adcRead.add(input.channel);
@@ -405,8 +408,8 @@ function init() {
     $("sim-serial").textContent = "";
     window.SproutLab.resetSerial();
     $("sim-stop").disabled = false;
-    setStatus("Running your program on a simulated UNO.");
-    if (window.SproutLab.simStarted) window.SproutLab.simStarted();
+    setStatus(test ? "Wiring test running." : "Running your program on a simulated UNO.");
+    if (!test && window.SproutLab.simStarted) window.SproutLab.simStarted();
     run.raf = setTimeout(() => frame(performance.now()), 0);
   }
 
@@ -495,6 +498,20 @@ function init() {
         ? `Your code switches ${others.join(", ")}, but the LED is wired to ${s.signal}. Match the wire or the code.`
         : `Your code never turns ${s.signal} HIGH. Check pinMode() and digitalWrite().`);
     }
+    if (run && run.test && performance.now() - run.startedAt > 1200) {
+      const t = run.test;
+      if (t.ledPin) {
+        items.unshift(run.litSeen
+          ? ["ok", `Wiring test: the LED on ${t.ledPin} blinks. Your LED wiring works.`]
+          : ["warn", `Wiring test: the test program blinks ${t.ledPin}, but the LED never lit. Check the tips below.`]);
+      }
+      if (t.analogPin) {
+        const tmp = s.tmp;
+        items.unshift(tmp && tmp.powered && tmp.outPin === t.analogPin
+          ? ["ok", `Wiring test: the sensor on ${t.analogPin} reports a temperature (see the messages). Move the slider to watch it change.`]
+          : ["warn", "Wiring test: the sensor is not reporting yet. Check the tips below."]);
+      }
+    }
     $("sim-feedback").replaceChildren(...items.map(([k, t]) => {
       const li = document.createElement("li");
       li.className = k;
@@ -506,6 +523,7 @@ function init() {
   let lastFeedback = 0;
   function refresh(force = false) {
     const live = evaluate(pinLevel);
+    if (run && live.lit) run.litSeen = true;
     if (parts.led && parts.led.lit !== live.lit) {
       parts.led.lit = live.lit;
       drawParts();
@@ -515,9 +533,58 @@ function init() {
     if (force || now - lastFeedback > 300) {
       lastFeedback = now;
       feedback();
-      if (run) setStatus(`Running your program on a simulated UNO (speed ${Math.round(run.speed * 100)}%).`);
+      if (run) {
+        setStatus(run.test ? "Wiring test running. Press Stop when you are done."
+          : `Running your program on a simulated UNO (speed ${Math.round(run.speed * 100)}%).`);
+      }
       else if (!force) setStatus("Stopped. Press Run to start your program.");
     }
+  }
+
+  /** A tiny program that blinks whichever pin the LED is wired to and reports the sensor. */
+  function wiringTest() {
+    const s = evaluate((n) => (n === "GND" ? "L" : "H"));
+    const ledPin = parts.led && s.lit && s.signal && /^D\d+$/.test(s.signal) ? s.signal : null;
+    const analogPin = s.tmp && s.tmp.outPin ? s.tmp.outPin : null;
+    if (!ledPin && !analogPin) return null;
+    const n = ledPin ? ledPin.slice(1) : null;
+    const code = [
+      "void setup() {", "  Serial.begin(9600);", n ? `  pinMode(${n}, OUTPUT);` : "", "}",
+      "void loop() {",
+      n ? `  digitalWrite(${n}, HIGH);` : "",
+      analogPin ? `  float v = analogRead(${analogPin}) * 5.0 / 1023.0;` : "",
+      analogPin ? `  Serial.print("${analogPin} = "); Serial.print(v, 2); Serial.print(" V, about ");` : "",
+      analogPin ? "  Serial.print((v - 0.5) * 100.0, 1); Serial.println(\" C\");" : "",
+      !analogPin ? `  Serial.println("LED on ${ledPin}: on");` : "",
+      "  delay(500);",
+      n ? `  digitalWrite(${n}, LOW);` : "",
+      !analogPin ? `  Serial.println("LED on ${ledPin}: off");` : "",
+      "  delay(500);", "}",
+    ].filter(Boolean).join("\n");
+    return { code, ledPin, analogPin };
+  }
+
+  function testWiring() {
+    const t = wiringTest();
+    if (!t) {
+      setStatus("Wire the parts first: the test needs the LED connected to a pin and GND, or the sensor connected to 5V, GND and an analog pin.");
+      refresh(true);
+      return;
+    }
+    start(t);
+  }
+
+  /** A static copy of the student's board, used as the build picture on the real-board step. */
+  function snapshot() {
+    const anyPlaced = Object.values(parts).some((q) => q.legs) || wires.length;
+    if (!anyPlaced) return null;
+    const clone = svg.cloneNode(true);
+    clone.removeAttribute("id");
+    clone.setAttribute("aria-label", "Your wiring from the simulator");
+    clone.querySelectorAll(".rubber").forEach((n) => n.remove());
+    clone.querySelectorAll("[id]").forEach((n) => n.setAttribute("id", `${n.id}-copy`));
+    clone.querySelectorAll("[filter]").forEach((n) => n.removeAttribute("filter"));
+    return clone;
   }
 
   // ------------------------------------------------------------------ interaction
@@ -636,7 +703,8 @@ function init() {
     $("sim-hover").textContent = termEl ? terms.get(termEl.dataset.term).label : "";
   });
 
-  $("sim-run").addEventListener("click", start);
+  $("sim-run").addEventListener("click", () => start());
+  $("sim-test").addEventListener("click", testWiring);
   $("sim-stop").addEventListener("click", stop);
   $("sim-delete").addEventListener("click", deleteSelected);
   function resetAll() {
@@ -705,6 +773,8 @@ function init() {
       lit: !!(parts.led && parts.led.lit), tmp: parts.tmp ? { ...parts.tmp } : null }),
     evaluate: () => evaluate(pinLevel),
     serialize: () => serialize(),
+    snapshot: () => snapshot(),
+    testWiring: () => testWiring(),
     place: (kind, holeId, flipped) => {
       const t = terms.get(holeId);
       Object.assign(parts[kind], { x: t.x, y: t.y });

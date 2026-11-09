@@ -65,12 +65,17 @@ to the UNO over Web Serial (Chrome or Edge only). Nothing is open to other machi
 4. Each upload is logged in `data/weblab/upload_trials.jsonl` (success, error type, time, USB chip
    ID; no names or code), for the reliability numbers.
 
-Modes: **Simulate** (code beside the simulator) and **Real board** (connect, upload, serial monitor).
-Opening a card's Simulate step switches to Simulate; Build and Run switch to Real board. A card's
-code and simulator wiring autosave per learner (`data/work/<learner>/<card>/`); **Back to cards**
-keeps the work, **Start over** deletes it. Checks in Simulate mode are logged with `source: sim`
-and never complete a card: only real-board output does. The editor has line numbers, and clicking a
-compile error jumps to its line.
+Student flow (designed from a first-time-student walkthrough): sign in with the student code the
+instructor hands out (e.g. `l_ab12`; no names) -> choose a card -> work through seven steps, each
+showing only what it needs, with the instructions directly above: 1 meet the project, 2 wire it in
+the simulator (**Test my wiring** runs a built-in test program, so no code is needed yet), 3 write
+the code (the starter's `// TODO` lines become a checklist), 4 try it in the simulator, 5 build it
+(the student's own simulator wiring is shown as the build picture), 6 send it to the real board and
+check, 7 think about it (the answer autosaves). **Need help?** opens the tutor from any step. A
+"Check that my board works" flow tests a new UNO with no parts. Code, wiring and answers autosave per
+learner and card (`data/work/<learner>/<card>/`); **All cards** keeps the work, **Start over** deletes
+it. Checks in the simulator are logged with `source: sim` and mark "works in the simulator"; only
+real-board output completes a card.
 
 Tutor in the Web Lab: pick a card (not the hello test) to see its steps, use **Check my work**,
 and **Get a hint**. The hint ladder, guardrails and the API key stay on the server; the browser

@@ -1,41 +1,75 @@
-/* SPROUT Web Lab page logic: compile on the server, upload and monitor in the browser, and ask
- * the server-side tutor for checks and hints (ladder rules and guardrails run on the server). */
+/* SPROUT Web Lab: a guided page for first-time students.
+ *
+ * Screens: sign in with a student code -> choose a card -> work through the card one step at a
+ * time (meet the project, wire it in the simulator, write the code, try it in the simulator,
+ * build it, send it to the real board and check, think about it). Each step shows only the tools
+ * it needs, with the instructions right above them. The tutor is a drawer that is always one
+ * click away. Code compiles on the server; uploads go from the browser over Web Serial; ladder
+ * rules, guardrails and the API key stay on the server.
+ */
 (function () {
   "use strict";
   const { parseIntelHex, Stk500Uploader, WebSerialTransport, UNO } = window.SproutUpload;
   const $ = (id) => document.getElementById(id);
+  const LEARNER_ID = /^l_[a-z0-9]{3,12}$/;
+  const REGIONS = ["info", "editor", "todo", "sim", "simside", "check", "buildref", "board", "reflect"];
+
+  // ------------------------------------------------------------------ steps
+  const STEPS = [
+    { id: "intro", short: "Meet the project", title: "Meet the project", regions: ["info"],
+      text: (c) => `${c.title}: read why it matters for growers, and check that you have the parts.`,
+      tips: [] },
+    { id: "wire", short: "Wire it", title: "Wire it in the simulator", regions: ["sim", "simside"],
+      mode: "sim", cardKind: "simulate", tutorStep: "simulate",
+      tips: ["Drag a part onto the breadboard. It snaps into the holes.",
+        "Holes in the same short column (rows a–e, or rows f–j) are connected to each other.",
+        "To add a wire, click a pin or a hole, then click another one.",
+        "Double-click the LED or the sensor to turn it around."] },
+    { id: "code", short: "Write the code", title: "Write the code", regions: ["editor", "todo"],
+      cardKind: "code", tutorStep: "code",
+      tips: ["Every instruction ends with a semicolon ;",
+        "Lines that start with // are notes for people. The board ignores them.",
+        "Press “Check my code” often. If something is wrong, click the red message to jump to that line."] },
+    { id: "simrun", short: "Try it", title: "Try your code in the simulator",
+      regions: ["editor", "sim", "simside", "check"], mode: "sim", tutorStep: "simulate",
+      text: () => "Press “Run my code”. Your program runs on the simulated board with your wiring. " +
+        "Compare what happens with the card, then press “Check my work”.",
+      tips: ["Nothing happens? Read the wiring tips and the messages from the board.",
+        "You can change the code and run it again as often as you like."] },
+    { id: "build", short: "Build it", title: "Build it on your real board", regions: ["buildref"],
+      cardKind: "build", tutorStep: "build",
+      text: () => "Copy your simulator wiring onto your real breadboard. Tick each item on the right as you go.",
+      tips: ["Keep the USB cable unplugged while you build.",
+        "Copy your simulator picture: same holes, same pins."] },
+    { id: "upload", short: "Send & check", title: "Send your code to your board and check it",
+      regions: ["editor", "board", "check"], mode: "board", cardKind: "run", tutorStep: "run",
+      tips: ["Plug in USB only after the circuit is built.",
+        "If something gets hot, unplug USB at once and ask for help."] },
+    { id: "reflect", short: "Think", title: "Think about it", regions: ["reflect"],
+      cardKind: "reflect", tutorStep: "reflect", tips: [] },
+  ];
+  const WARMUP = [
+    { id: "warmup", short: "Board check", title: "Check that your board works", regions: ["board"], mode: "board",
+      text: () => "Plug in your UNO, connect it, and send the test program. The small light marked “L” " +
+        "on the board should blink once a second, and the messages should count 1, 2, 3…",
+      tips: ["If the list in step 2 is empty, try another USB port or another cable.",
+        "Close the Arduino IDE if it is open: only one program can talk to the board at a time."] },
+  ];
 
   const state = {
-    config: null,
-    compiled: null, // { code, hex, flash_bytes, flash_max }
-    port: null,
-    transport: null,
-    busy: false,
-    trials: [],
-    decoder: new TextDecoder(),
-    learner: "l_demo",
-    cardId: null,      // card of the selected sketch (null for the hello test)
-    stepId: null,      // card step the student has open
-    serialLines: [],   // real board: complete serial lines since the last upload (sent to the tutor)
-    serialPartial: "",
-    simLines: [],      // simulator: serial lines since the last simulator run
-    simPartial: "",
-    asking: false,
-    loadedCode: "",    // code as loaded, to tell whether the student changed anything
-    mode: "sim",       // "sim" | "board"
-    saveKey: null,     // card whose work autosaves (null for the hello test and seeded faults)
-    saveTimer: null,
-    pending: {},       // unsaved fields: { code, sim }
+    config: null, learner: null,
+    cardId: null, warmup: false, practice: null, saveKey: null,
+    steps: STEPS, stepIdx: 0,
+    compiled: null, errorLines: new Set(), starterTodos: [], loadedCode: "",
+    port: null, transport: null, busy: false, asking: false, trials: [], decoder: new TextDecoder(),
+    serialLines: [], serialPartial: "", simLines: [], simPartial: "",
+    mode: "none", saveTimer: null, pending: {},
   };
 
-  const LEARNER_ID = /^l_[a-z0-9]{3,12}$/;
-
-  // ---------- helpers ----------
+  // ------------------------------------------------------------------ helpers
   async function postJson(url, body) {
     const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!r.ok) {
       let reason = "";
@@ -44,84 +78,259 @@
     }
     return r.json();
   }
+  const quietly = (p) => p.catch(() => { /* logging is best-effort */ });
 
-  function show(el, parts) {
-    el.replaceChildren(...parts.map(([cls, text]) => {
-      const span = document.createElement("div");
-      if (cls) span.className = cls;
-      span.textContent = text;
-      return span;
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function show(target, parts) {
+    target.replaceChildren(...parts.map(([cls, text]) => el("div", cls, text)));
+  }
+
+  const card = () => (state.cardId ? state.config.cards[state.cardId] : null);
+  const step = () => state.steps[state.stepIdx];
+  const cardStepText = (kind) => (card()?.steps.find((s) => s.kind === kind) || {}).text || "";
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (_) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* blocked */ } },
+    del(k) { try { localStorage.removeItem(k); } catch (_) { /* blocked */ } },
+  };
+
+  // ------------------------------------------------------------------ screens
+  function showScreen(name) {
+    document.body.dataset.screen = name;
+    for (const s of ["signin", "cards", "card"]) $(`screen-${s}`).hidden = s !== name;
+    $("help-fab").hidden = !(name === "card" && state.cardId);
+    if (name !== "card") {
+      closeHelp();
+      delete document.body.dataset.step;
+      setMode("none");
+    }
+    window.scrollTo(0, 0);
+  }
+
+  // ---- sign in
+  function signIn(code) {
+    const id = (code || "").trim().toLowerCase();
+    if (!LEARNER_ID.test(id)) {
+      $("signin-err").textContent = "That code does not look right. It starts with l_ and has 3 to 12 letters or numbers, like l_ab12.";
+      $("signin-err").hidden = false;
+      return;
+    }
+    state.learner = id;
+    store.set("sprout.learner", id);
+    $("who-id").textContent = id;
+    $("who").hidden = false;
+    $("signin-err").hidden = true;
+    openCardList();
+  }
+
+  async function switchStudent() {
+    await flushSave();
+    store.del("sprout.learner");
+    state.learner = null;
+    state.cardId = null;
+    $("who").hidden = true;
+    $("signin-code").value = "";
+    showScreen("signin");
+    $("signin-code").focus();
+  }
+
+  // ---- card list
+  async function openCardList() {
+    await flushSave();
+    state.cardId = null;
+    state.warmup = false;
+    document.dispatchEvent(new CustomEvent("sprout:card", { detail: null }));
+    showScreen("cards");
+    const badges = {};
+    const tiles = Object.values(state.config.cards).map((c, i) => {
+      const b = el("button", "tile");
+      badges[c.id] = el("span", "badge", "…");
+      b.append(el("span", "stage", `Card ${i + 1} · ${c.stage}`), el("span", "title", c.title),
+        el("span", "blurb", c.agriculture_connection.split(". ")[0] + "."), badges[c.id]);
+      b.addEventListener("click", () => openCard(c.id));
+      return b;
+    });
+    $("card-tiles").replaceChildren(...tiles);
+    let progress = {};
+    try {
+      progress = (await postJson("/api/weblab/progress", { learner: state.learner })).cards;
+    } catch (_) { /* tiles still work without badges */ }
+    for (const [id, badge] of Object.entries(badges)) {
+      const p = progress[id] || {};
+      const [cls, text] = p.status === "completed" ? ["done", "Done on your board ✓"]
+        : p.sim_passed ? ["sim", "Works in the simulator"]
+          : p.status === "in_progress" ? ["progress", "In progress"] : ["", "Not started"];
+      badge.className = `badge ${cls}`;
+      badge.textContent = text;
+    }
+    if (state.config.test_mode) {
+      const practice = state.config.sketches.filter((s) => s.id.includes(":"));
+      $("practice").hidden = practice.length === 0;
+      $("practice-list").replaceChildren(...practice.map((s) => {
+        const b = el("button", "small", s.title);
+        b.addEventListener("click", () => openCard(s.card_id, { practice: s }));
+        return b;
+      }));
+    }
+  }
+
+  // ---- one card
+  async function openCard(cardId, opts = {}) {
+    await flushSave();
+    state.cardId = cardId;
+    state.warmup = false;
+    state.practice = opts.practice || null;
+    state.saveKey = state.practice ? null : cardId;
+    state.steps = STEPS;
+    const c = card();
+    const starter = (state.config.sketches.find((s) => s.id === cardId) || {}).code || "";
+    let code = state.practice ? state.practice.code : starter;
+    let sim = null;
+    let reflection = "";
+    if (state.saveKey && !opts.fresh) {
+      try {
+        const w = await postJson("/api/weblab/work", { learner: state.learner, card_id: cardId });
+        if (typeof w.code === "string") code = w.code;
+        sim = w.sim;
+        reflection = w.reflection || "";
+        setSaveStatus(w.code || w.sim ? "Your saved work is back" : "");
+      } catch (_) {
+        setSaveStatus("Could not load your saved work", true);
+      }
+    } else {
+      setSaveStatus("");
+    }
+    state.starterTodos = starter.split("\n").filter((l) => /\/\/\s*TODO/i.test(l)).map((l) => l.trim());
+    setCode(code);
+    $("reflection").value = reflection;
+    $("practice-note").hidden = !state.practice;
+    $("btn-restart").hidden = !!state.practice;
+    $("card-title").textContent = state.practice ? `${c.title} (practice)` : c.title;
+    renderCardInfo(c);
+    $("hints").replaceChildren();
+    $("check-out").replaceChildren();
+    $("upload-out").replaceChildren();
+    $("restart-confirm").hidden = true;
+    state.simLines = [];
+    document.dispatchEvent(new CustomEvent("sprout:card",
+      { detail: { cardId: c.id, title: c.title, parts: c.parts, sim } }));
+    quietly(postJson("/api/weblab/card_open", { learner: state.learner, card_id: cardId }));
+    showScreen("card");
+    const saved = Number(store.get(`sprout.step.${state.learner}.${cardId}`));
+    const start = state.practice ? STEPS.findIndex((s) => s.id === "code")
+      : opts.fresh ? 0 : Number.isInteger(saved) && saved >= 0 && saved < STEPS.length ? saved : 0;
+    goStep(start);
+  }
+
+  async function openWarmup() {
+    await flushSave();
+    state.cardId = null;
+    state.warmup = true;
+    state.practice = null;
+    state.saveKey = null;
+    state.steps = WARMUP;
+    setCode((state.config.sketches.find((s) => s.id === "hello") || {}).code || "");
+    $("card-title").textContent = "Check that your board works";
+    $("btn-restart").hidden = true;
+    setSaveStatus("");
+    $("upload-out").replaceChildren();
+    showScreen("card");
+    goStep(0);
+  }
+
+  function renderCardInfo(c) {
+    $("card-ag").textContent = c.agriculture_connection;
+    $("card-objectives").replaceChildren(...c.learning_objectives.map((x) => el("li", "", x)));
+    $("card-parts").replaceChildren(...c.parts.map((x) => el("li", "", x)));
+    for (const id of ["card-safety", "build-safety"]) {
+      $(id).replaceChildren(...c.safety.map((x) => el("li", "", x)));
+      $(id).hidden = c.safety.length === 0;
+    }
+    const sentences = cardStepText("build").split(/(?<=\.)\s+/).filter(Boolean);
+    $("build-checklist").replaceChildren(...["Unplug the USB cable.", ...sentences].map((x) => {
+      const li = el("li");
+      li.append(el("span", "box"), el("span", "", x));
+      li.addEventListener("click", () => li.classList.toggle("done")); // a checklist the student ticks
+      return li;
     }));
   }
 
-  function setBoardStatus(text, kind) {
-    const pill = $("board-status");
-    pill.textContent = text;
-    pill.className = `pill ${kind}`;
+  function goStep(i) {
+    state.stepIdx = Math.max(0, Math.min(i, state.steps.length - 1));
+    const s = step();
+    const c = card();
+    document.body.dataset.step = s.id;
+    for (const r of REGIONS) document.querySelector(`.r-${r}`).hidden = !s.regions.includes(r);
+    $("step-title").textContent = state.steps.length > 1
+      ? `Step ${state.stepIdx + 1} of ${state.steps.length} · ${s.title}` : s.title;
+    $("step-text").textContent = s.text ? s.text(c) : cardStepText(s.cardKind);
+    $("step-tips").replaceChildren(...s.tips.map((t) => el("li", "", t)));
+    $("step-tips").hidden = s.tips.length === 0;
+    setMode(s.mode || "none");
+    if (s.id === "build") renderBuildRef();
+    if (s.id === "code") updateTodos();
+    renderStepbar();
+    $("btn-prev").disabled = state.stepIdx === 0;
+    const next = state.steps[state.stepIdx + 1];
+    $("btn-next").textContent = next ? `Next: ${next.short} →` : "Done → back to cards";
+    if (state.cardId && !state.practice) store.set(`sprout.step.${state.learner}.${state.cardId}`, String(state.stepIdx));
+    window.scrollTo(0, 0);
   }
 
-  function boardName(info) {
-    if (!info || info.usbVendorId === undefined) return "unknown USB chip";
-    const known = (state.config?.known_boards || []).find(
-      (b) => b.usbVendorId === info.usbVendorId && b.usbProductId === info.usbProductId);
-    const id = `${info.usbVendorId.toString(16).padStart(4, "0")}:` +
-      `${(info.usbProductId ?? 0).toString(16).padStart(4, "0")}`;
-    return known ? `${known.name} [${id}]` : `unrecognized [${id}]`;
+  function renderStepbar() {
+    const bar = $("stepbar");
+    bar.hidden = state.steps.length < 2;
+    bar.replaceChildren(...state.steps.map((s, i) => {
+      const li = el("li");
+      const b = el("button");
+      if (i === state.stepIdx) b.setAttribute("aria-current", "step");
+      if (i < state.stepIdx) b.classList.add("seen");
+      b.append(el("span", "num", String(i + 1)), el("span", "", s.short));
+      b.addEventListener("click", () => goStep(i));
+      li.append(b);
+      return li;
+    }));
   }
 
-  function refreshButtons() {
-    const connected = !!state.transport?.isOpen;
-    $("btn-compile").disabled = state.busy;
-    $("btn-upload").disabled = state.busy || !connected;
-    $("btn-connect").disabled = state.busy || connected || !("serial" in navigator);
-    $("btn-disconnect").disabled = state.busy || !connected;
-    $("baud").disabled = state.busy;
-    $("btn-check").disabled = state.busy || state.asking;
-    $("btn-hint").disabled = state.busy || state.asking;
-    $("btn-sim-run-2").disabled = state.busy;
+  function renderBuildRef() {
+    const snap = window.SproutSim && window.SproutSim.snapshot ? window.SproutSim.snapshot() : null;
+    $("buildref").replaceChildren(...(snap ? [snap] : []));
+    $("buildref").hidden = !snap;
+    $("buildref-empty").hidden = !!snap;
   }
 
-  function collectSerial(text, source = "board") {
-    const linesKey = source === "sim" ? "simLines" : "serialLines";
-    const partKey = source === "sim" ? "simPartial" : "serialPartial";
-    const parts = (state[partKey] + text).split(/\r?\n/);
-    state[partKey] = parts.pop().slice(-300);
-    const lines = state[linesKey];
-    for (const line of parts) if (line.trim()) lines.push(line.slice(0, 300));
-    if (lines.length > 300) lines.splice(0, lines.length - 300);
-  }
-
-  /** The serial lines the tutor should judge: from the simulator or the real board. */
-  const currentSerial = () => (state.mode === "sim" ? state.simLines : state.serialLines);
-
-  // ---------- mode: simulate or real board ----------
-  function setMode(mode, remember = true) {
-    if (mode !== "sim" && mode !== "board") return;
+  // ------------------------------------------------------------------ mode (which board the tutor judges)
+  function setMode(mode) {
     state.mode = mode;
-    document.body.classList.toggle("mode-sim", mode === "sim");
-    document.body.classList.toggle("mode-board", mode === "board");
-    $("mode-sim").setAttribute("aria-selected", String(mode === "sim"));
-    $("mode-board").setAttribute("aria-selected", String(mode === "board"));
-    $("check-source").textContent = mode === "sim" ? "using the simulator" : "using the real board";
+    $("check-source").textContent = mode === "sim" ? "using the simulator" : mode === "board" ? "using your real board" : "";
     document.dispatchEvent(new CustomEvent("sprout:mode", { detail: mode }));
-    if (remember) {
-      try { localStorage.setItem("sprout.mode", mode); } catch (_) { /* storage may be blocked */ }
-    }
     refreshButtons();
   }
+  const currentSerial = () => (state.mode === "sim" ? state.simLines : state.serialLines);
 
-  // ---------- line numbers ----------
+  // ------------------------------------------------------------------ editor
+  function setCode(code) {
+    $("code").value = code;
+    state.loadedCode = code;
+    state.compiled = null;
+    state.errorLines = new Set();
+    $("size").textContent = "";
+    $("compile-out").replaceChildren();
+    updateGutter();
+    updateTodos();
+  }
+
   function updateGutter() {
     const n = $("code").value.split("\n").length;
-    const errs = state.errorLines || new Set();
-    const g = $("gutter");
-    g.replaceChildren(...Array.from({ length: n }, (_, i) => {
-      const span = document.createElement("span");
-      span.textContent = `${i + 1}\n`;
-      if (errs.has(i + 1)) span.className = "err-line";
-      return span;
-    }));
-    g.scrollTop = $("code").scrollTop;
+    $("gutter").replaceChildren(...Array.from({ length: n }, (_, i) =>
+      el("span", state.errorLines.has(i + 1) ? "err-line" : "", `${i + 1}\n`)));
+    $("gutter").scrollTop = $("code").scrollTop;
   }
 
   function jumpToLine(line) {
@@ -135,7 +344,53 @@
     updateGutter();
   }
 
-  // ---------- autosave (per learner and card, on the server) ----------
+  /** The starter's "// TODO" lines become a checklist that ticks off when the line is replaced. */
+  function updateTodos() {
+    const left = new Map();
+    for (const l of $("code").value.split("\n")) left.set(l.trim(), (left.get(l.trim()) || 0) + 1);
+    const items = state.starterTodos.map((t) => {
+      const stillThere = (left.get(t) || 0) > 0;
+      if (stillThere) left.set(t, left.get(t) - 1);
+      const li = el("li", stillThere ? "" : "done");
+      li.append(el("span", "box"), el("span", "", t.replace(/^\/\/\s*TODO:?\s*/i, "")));
+      return li;
+    });
+    $("todo-help").hidden = items.length === 0;
+    $("todo-list").replaceChildren(...(items.length ? items
+      : [el("li", "", "No to-do lines in this sketch. Follow the step text above.")]));
+  }
+
+  async function compile() {
+    const code = $("code").value;
+    if (state.compiled && state.compiled.code === code) return state.compiled;
+    show($("compile-out"), [["muted", "Checking your code…"]]);
+    $("size").textContent = "";
+    const r = await postJson("/api/weblab/compile", { code, learner: state.learner, card_id: state.cardId });
+    if (!r.ok) {
+      state.compiled = null;
+      state.errorLines = new Set(r.errors.filter((e) => e.line).map((e) => e.line));
+      const rows = r.errors.map((e) => {
+        const div = el("div", e.line ? "err jump" : "err", e.line ? `Line ${e.line}: ${e.message}` : e.message);
+        if (e.line) {
+          div.title = "Show this line";
+          div.addEventListener("click", () => jumpToLine(e.line));
+        }
+        return div;
+      });
+      rows.push(el("div", "muted", "Click a red message to jump to that line. Stuck? Press “Need help?”."));
+      $("compile-out").replaceChildren(...rows);
+      updateGutter();
+      return null;
+    }
+    state.errorLines = new Set();
+    updateGutter();
+    state.compiled = { code, hex: r.hex, flash_bytes: r.flash_bytes, flash_max: r.flash_max };
+    show($("compile-out"), [["ok", "✓ The computer understands your code."]]);
+    if (r.flash_bytes) $("size").textContent = `uses ${r.flash_bytes} of ${r.flash_max} bytes on the board`;
+    return state.compiled;
+  }
+
+  // ------------------------------------------------------------------ autosave
   function setSaveStatus(text, bad = false) {
     $("save-status").textContent = text;
     $("save-status").classList.toggle("bad", bad);
@@ -159,11 +414,42 @@
         headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error(String(r.status));
       setSaveStatus(`Saved ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`);
-    } catch (e) {
-      Object.assign(state.pending, body.code !== undefined ? { code: body.code } : {},
-        body.sim !== undefined ? { sim: body.sim } : {});
+    } catch (_) {
+      for (const k of ["code", "sim", "reflection"]) if (body[k] !== undefined) state.pending[k] = body[k];
       setSaveStatus("Not saved yet: the server is not reachable", true);
     }
+  }
+
+  async function startOver() {
+    $("restart-confirm").hidden = true;
+    const id = state.cardId;
+    state.pending = {};
+    clearTimeout(state.saveTimer);
+    try {
+      await postJson("/api/weblab/discard", { learner: state.learner, card_id: id });
+    } catch (_) { /* the reload below still resets the page */ }
+    store.del(`sprout.step.${state.learner}.${id}`);
+    await openCard(id, { fresh: true });
+    setSaveStatus("Started over");
+  }
+
+  async function backToCards() {
+    if (state.cardId) {
+      quietly(postJson("/api/weblab/card_leave", { learner: state.learner, card_id: state.cardId,
+        code: $("code").value, changed: $("code").value !== state.loadedCode }));
+    }
+    await openCardList();
+  }
+
+  // ------------------------------------------------------------------ serial
+  function collectSerial(text, source = "board") {
+    const linesKey = source === "sim" ? "simLines" : "serialLines";
+    const partKey = source === "sim" ? "simPartial" : "serialPartial";
+    const parts = (state[partKey] + text).split(/\r?\n/);
+    state[partKey] = parts.pop().slice(-300);
+    const lines = state[linesKey];
+    for (const line of parts) if (line.trim()) lines.push(line.slice(0, 300));
+    if (lines.length > 300) lines.splice(0, lines.length - 300);
   }
 
   function appendMonitor(text) {
@@ -173,42 +459,31 @@
     if (atBottom) mon.scrollTop = mon.scrollHeight;
   }
 
-  // ---------- compile ----------
-  async function compile() {
-    const code = $("code").value;
-    if (state.compiled && state.compiled.code === code) return state.compiled;
-    show($("compile-out"), [["muted", "Compiling on the server…"]]);
-    $("size").textContent = "";
-    const r = await postJson("/api/weblab/compile",
-      { code, learner: state.learner, card_id: state.cardId });
-    if (!r.ok) {
-      state.compiled = null;
-      state.errorLines = new Set(r.errors.filter((e) => e.line).map((e) => e.line));
-      const out = $("compile-out");
-      out.replaceChildren(...r.errors.map((e) => {
-        const div = document.createElement("div");
-        div.className = e.line ? "err jump" : "err";
-        div.textContent = e.line ? `Line ${e.line}: ${e.message}` : e.message;
-        if (e.line) {
-          div.title = "Show this line in the editor";
-          div.addEventListener("click", () => jumpToLine(e.line));
-        }
-        return div;
-      }));
-      updateGutter();
-      return null;
-    }
-    state.errorLines = new Set();
-    updateGutter();
-    state.compiled = { code, hex: r.hex, flash_bytes: r.flash_bytes, flash_max: r.flash_max };
-    show($("compile-out"), [["ok", `Compiled in ${(r.compile_ms / 1000).toFixed(1)} s.`]]);
-    if (r.flash_bytes) {
-      $("size").textContent = `uses ${r.flash_bytes} of ${r.flash_max} bytes`;
-    }
-    return state.compiled;
+  // ------------------------------------------------------------------ real board
+  function setBoardStatus(text, kind) {
+    $("board-status").textContent = text;
+    $("board-status").className = `pill ${kind}`;
   }
 
-  // ---------- board ----------
+  function boardName(info) {
+    if (!info || info.usbVendorId === undefined) return "unknown USB chip";
+    const known = (state.config?.known_boards || []).find(
+      (b) => b.usbVendorId === info.usbVendorId && b.usbProductId === info.usbProductId);
+    const id = `${info.usbVendorId.toString(16).padStart(4, "0")}:${(info.usbProductId ?? 0).toString(16).padStart(4, "0")}`;
+    return known ? `connected: ${known.name}` : `connected: unrecognized board [${id}]`;
+  }
+
+  function refreshButtons() {
+    const connected = !!state.transport?.isOpen;
+    $("btn-compile").disabled = state.busy;
+    $("btn-upload").disabled = state.busy || !connected;
+    $("btn-connect").disabled = state.busy || connected || !("serial" in navigator);
+    $("btn-disconnect").disabled = state.busy || !connected;
+    $("baud").disabled = state.busy;
+    $("btn-check").disabled = state.busy || state.asking;
+    $("btn-hint").disabled = state.asking;
+  }
+
   async function connect() {
     const filters = $("all-ports").checked ? [] : (state.config?.known_boards || [])
       .map((b) => ({ usbVendorId: b.usbVendorId, usbProductId: b.usbProductId }));
@@ -216,10 +491,9 @@
     try {
       port = await navigator.serial.requestPort(filters.length ? { filters } : {});
     } catch (e) {
-      // The user closed the chooser, or no matching board: keep quiet unless it is unexpected.
-      if (e.name !== "NotFoundError") show($("upload-out"), [["err", e.message]]);
-      else show($("upload-out"), [["muted",
-        "No board chosen. If your board is not listed, tick “show all ports” and try again."]]);
+      show($("upload-out"), [[e.name === "NotFoundError" ? "muted" : "err", e.name === "NotFoundError"
+        ? "No board chosen. Is the USB cable plugged in? If your board is not in the list, open Advanced and tick “show all USB devices”."
+        : e.message]]);
       return;
     }
     await openPort(port, Number($("baud").value));
@@ -230,25 +504,23 @@
     t.onData = (chunk) => {
       const text = state.decoder.decode(chunk, { stream: true });
       appendMonitor(text);
-      collectSerial(text);
+      collectSerial(text, "board");
     };
     t.onLost = () => {
-      setBoardStatus("connection lost", "off");
+      setBoardStatus("connection lost: plug it in and connect again", "off");
       state.transport = null;
       refreshButtons();
     };
     try {
       await t.open(baud);
     } catch (e) {
-      show($("upload-out"), [["err",
-        `Could not open the port: ${e.message}. Close the Arduino IDE or any other program ` +
-        "using the board, then try again."]]);
+      show($("upload-out"), [["err", `Could not open the board: ${e.message}. Close the Arduino IDE or any other program using the board, then try again.`]]);
       return;
     }
     state.port = port;
     state.transport = t;
     setBoardStatus(boardName(port.getInfo()), "on");
-    show($("upload-out"), [["muted", "Connected. Press “Upload to board”."]]);
+    show($("upload-out"), [["muted", "Connected. Now press “Send to my board”."]]);
     refreshButtons();
   }
 
@@ -268,21 +540,20 @@
     const t = state.transport;
     const info = state.port?.getInfo() || {};
     const trial = { ok: false, error_code: "", upload_ms: 0, bytes: 0, attempt: state.trials.length + 1,
-      usb_vendor_id: info.usbVendorId, usb_product_id: info.usbProductId,
-      browser: navigator.userAgent.slice(0, 200) };
+      usb_vendor_id: info.usbVendorId, usb_product_id: info.usbProductId, browser: navigator.userAgent.slice(0, 200) };
     try {
       const c = await compile();
       if (!c) {
         trial.error_code = "compile_error";
+        show(out, [["err", "Your code has a problem, so it was not sent. See the red message under your code."]]);
         return;
       }
       const image = parseIntelHex(c.hex);
       trial.bytes = image.length;
       progress.hidden = false;
       bar.style.width = "0%";
-      show(out, [["muted", "Uploading… (the board's lights will flicker)"]]);
-      setBoardStatus("uploading", "busy");
-
+      show(out, [["muted", "Sending… (the lights on the board flicker)"]]);
+      setBoardStatus("receiving code", "busy");
       await t.reopen(UNO.uploadBaud);
       t.mode = "upload";
       const uploader = new Stk500Uploader(t, {
@@ -296,170 +567,68 @@
       state.serialPartial = "";
       trial.ok = true;
       trial.upload_ms = r.ms;
-      show(out, [["ok", `Uploaded and verified ${r.bytes} bytes in ${(r.ms / 1000).toFixed(1)} s.`]]);
+      show(out, [["ok", `✓ Your code is on the board (sent and checked in ${(r.ms / 1000).toFixed(1)} s).`]]);
     } catch (e) {
       trial.error_code = e.code || e.name || "error";
       show(out, [["err", e.message]]);
       if (e.trace) {
         trial.note = e.trace.split("\n").slice(-6).join(" | ").slice(0, 200);
-        const det = document.createElement("details");
-        const sum = document.createElement("summary");
-        sum.textContent = "Technical details (protocol bytes)";
-        const pre = document.createElement("pre");
-        pre.className = "trace";
-        pre.textContent = e.trace;
-        det.append(sum, pre);
+        const det = el("details");
+        det.append(el("summary", "", "Technical details for your instructor"), el("pre", "trace", e.trace));
         out.appendChild(det);
-        console.log("[weblab] upload trace\n" + e.trace);
       }
     } finally {
       try {
-        if (t && t.isOpen !== undefined) {
+        if (t) {
           t.mode = "monitor";
           state.decoder = new TextDecoder();
           await t.reopen(Number($("baud").value));
           setBoardStatus(boardName(state.port.getInfo()), "on");
         }
       } catch (e) {
-        setBoardStatus("connection lost", "off");
+        setBoardStatus("connection lost: plug it in and connect again", "off");
         state.transport = null;
-        show(out, [["err", `${out.textContent}\nThe port closed: ${e.message}`]]);
       }
       progress.hidden = true;
       state.busy = false;
       refreshButtons();
-      if (trial.error_code !== "compile_error") recordTrial(trial);
-      if (state.cardId && trial.error_code !== "compile_error") {
-        postJson("/api/weblab/upload_done", { learner: state.learner, card_id: state.cardId,
-          code: $("code").value, ok: trial.ok, error_code: trial.error_code })
-          .catch(() => { /* logging is best-effort */ });
+      if (trial.error_code !== "compile_error") {
+        recordTrial(trial);
+        if (state.cardId) {
+          quietly(postJson("/api/weblab/upload_done", { learner: state.learner, card_id: state.cardId,
+            code: $("code").value, ok: trial.ok, error_code: trial.error_code }));
+        }
       }
     }
   }
 
   function recordTrial(trial) {
     state.trials.push(trial);
-    const tr = document.createElement("tr");
-    const cells = [trial.attempt, trial.ok ? "OK" : `failed (${trial.error_code})`,
+    const tr = el("tr");
+    for (const c of [trial.attempt, trial.ok ? "OK" : `failed (${trial.error_code})`,
       trial.ok ? `${(trial.upload_ms / 1000).toFixed(1)} s` : "–", trial.bytes || "–",
-      boardName({ usbVendorId: trial.usb_vendor_id, usbProductId: trial.usb_product_id })];
-    for (const c of cells) {
-      const td = document.createElement("td");
-      td.textContent = String(c);
-      tr.appendChild(td);
-    }
+      boardName({ usbVendorId: trial.usb_vendor_id, usbProductId: trial.usb_product_id })]) tr.append(el("td", "", String(c)));
     $("trials").appendChild(tr);
-    const ok = state.trials.filter((x) => x.ok).length;
-    $("trial-count").textContent = `(${ok}/${state.trials.length} succeeded)`;
-    const body = Object.fromEntries(Object.entries(trial).filter(([, v]) => v !== undefined));
-    postJson("/api/weblab/trial", body).catch(() => { /* logging is best-effort */ });
+    $("trial-count").textContent = `(${state.trials.filter((x) => x.ok).length}/${state.trials.length} succeeded)`;
+    quietly(postJson("/api/weblab/trial", Object.fromEntries(Object.entries(trial).filter(([, v]) => v !== undefined))));
   }
 
-  // ---------- card and tutor ----------
-  function el(tag, cls, text) {
-    const e = document.createElement(tag);
-    if (cls) e.className = cls;
-    if (text !== undefined) e.textContent = text;
-    return e;
-  }
-
-  function renderCard() {
-    const card = state.cardId ? state.config.cards[state.cardId] : null;
-    $("card-empty").hidden = !!card;
-    $("card-body").hidden = !card;
-    $("check-out").replaceChildren();
-    $("hints").replaceChildren();
-    $("question").value = "";
-    $("restart-confirm").hidden = true;
-    state.stepId = null;
-    if (!card) {
-      const buttons = Object.values(state.config.cards).map((c) => {
-        const b = el("button");
-        b.append(el("span", "stage", c.stage), el("span", "", c.title));
-        b.addEventListener("click", () => {
-          const sel = $("sketch");
-          sel.value = c.id; // the card's starter sketch
-          sel.dispatchEvent(new Event("change"));
-        });
-        return b;
-      });
-      $("card-picker").replaceChildren(...buttons);
-      return;
-    }
-    $("card-title").textContent = card.title;
-    $("card-ag").textContent = card.agriculture_connection;
-    $("card-safety").replaceChildren(...card.safety.map((x) => el("li", "", x)));
-    $("card-safety").hidden = card.safety.length === 0;
-    const steps = card.steps.map((st, i) => {
-      const d = el("details");
-      d.append(el("summary", "", `${i + 1}. ${st.kind[0].toUpperCase()}${st.kind.slice(1)}`),
-        el("p", "", st.text));
-      if (st.kind === "simulate") {
-        d.append(el("p", "muted", "Use Simulate mode (top right): wire the parts and run your code there first."));
-      }
-      d.addEventListener("toggle", () => {
-        if (!d.open) return;
-        state.stepId = st.id;
-        for (const other of $("card-steps").children) if (other !== d) other.open = false;
-        // Simulate first, then build and run on the real board.
-        if (st.kind === "simulate") setMode("sim");
-        else if (st.kind === "build" || st.kind === "run") setMode("board");
-      });
-      return d;
-    });
-    $("card-steps").replaceChildren(...steps);
-  }
-
-  /** Back to the card list. The work is autosaved, so nothing is lost. */
-  async function goBack() {
-    const changed = $("code").value !== state.loadedCode;
-    await flushSave();
-    if (state.cardId) {
-      postJson("/api/weblab/card_leave", { learner: state.learner, card_id: state.cardId,
-        code: $("code").value, changed }).catch(() => { /* logging is best-effort */ });
-    }
-    const sel = $("sketch");
-    sel.value = "hello";
-    sel.dispatchEvent(new Event("change"));
-  }
-
-  /** Start over: delete the saved code and wiring, then reload the starter. */
-  async function startOver() {
-    $("restart-confirm").hidden = true;
-    const key = state.saveKey || state.cardId;
-    state.pending = {};
-    clearTimeout(state.saveTimer);
-    if (key) {
-      try {
-        await postJson("/api/weblab/discard", { learner: state.learner, card_id: key });
-      } catch (_) { /* the reload below still resets the page */ }
-    }
-    await loadSketch(true);
-    setSaveStatus("Started over");
-  }
-
-  async function openCard() {
-    renderCard();
-    if (!state.cardId) return;
-    try {
-      await postJson("/api/weblab/card_open", { learner: state.learner, card_id: state.cardId });
-    } catch (_) { /* logging is best-effort */ }
-  }
-
+  // ------------------------------------------------------------------ check my work
   async function checkWork() {
-    if (!state.cardId) return; // the hello test has no card to check
+    if (!state.cardId) return;
     state.asking = true;
     refreshButtons();
     try {
       const r = await postJson("/api/weblab/check", { learner: state.learner, card_id: state.cardId,
-        code: $("code").value, serial: currentSerial(), source: state.mode });
-      const rows = r.results.map((x) =>
-        el("div", x.passed ? "pass" : "todo", `${x.passed ? "✓" : "○"} ${x.id}: ${x.detail}`));
+        code: $("code").value, serial: currentSerial(), source: state.mode === "sim" ? "sim" : "board" });
+      const rows = r.results.map((x) => el("div", x.passed ? "pass" : "todo",
+        `${x.passed ? "✓" : "○"} ${x.id.replace(/_/g, " ")}: ${x.detail}`));
       if (r.all_passed && r.completes_card) {
-        rows.push(el("div", "done", "Card complete on the real board. Go on to the Reflect step."));
+        rows.push(el("div", "done", "🎉 Card complete on your real board! Go on to the last step."));
       } else if (r.all_passed) {
-        rows.push(el("div", "done", "It works in the simulator. Now build it on the real board " +
-          "(Real board mode) and check again to complete the card."));
+        rows.push(el("div", "done", "It works in the simulator. Next, build it on your real board."));
+      } else {
+        rows.push(el("div", "muted", "Not yet. Fix the items marked ○, then check again. Stuck? Press “Need help?”."));
       }
       $("check-out").replaceChildren(...rows);
     } catch (e) {
@@ -470,24 +639,34 @@
     }
   }
 
+  // ------------------------------------------------------------------ tutor drawer
+  function openHelp() {
+    $("help").hidden = false;
+    $("help-fab").hidden = true;
+    $("question").focus();
+  }
+  function closeHelp() {
+    $("help").hidden = true;
+    $("help-fab").hidden = !(document.body.dataset.screen === "card" && state.cardId);
+  }
+
   async function askHint() {
-    if (!state.cardId) return; // the tutor works per card
+    if (!state.cardId) return;
     state.asking = true;
     refreshButtons();
     const message = $("question").value;
     try {
       const r = await postJson("/api/weblab/hint", { learner: state.learner, card_id: state.cardId,
-        code: $("code").value, serial: currentSerial(), message, step_id: state.stepId });
+        code: $("code").value, serial: currentSerial(), message, step_id: step().tutorStep || null });
       const box = el("div", "hint");
       const meta = el("div", "meta");
-      meta.append(el("b", "", r.source_label), document.createTextNode(
-        ` · hint ${r.step} of ${r.max_step} (${r.step_name})`));
+      meta.append(el("b", "", r.source_label), document.createTextNode(` · hint ${r.step} of ${r.max_step}`));
       box.append(meta, el("div", "body", r.text));
       $("hints").appendChild(box);
       $("question").value = "";
     } catch (e) {
       const box = el("div", "hint err");
-      box.append(el("div", "body", `The tutor is not available right now (${e.message}).`));
+      box.append(el("div", "body", `The tutor is not available right now (${e.message}). Ask your instructor or a peer mentor.`));
       $("hints").appendChild(box);
     } finally {
       state.asking = false;
@@ -495,94 +674,48 @@
     }
   }
 
-  // ---------- hooks for the simulator module (sim.js) ----------
+  // ------------------------------------------------------------------ simulator hooks (sim.js)
   window.SproutLab = {
-    compile: () => compile(),                 // { hex, ... } or null (errors shown under the editor)
+    compile: () => compile(),
+    /** Compile code that is not the student's (the wiring test); nothing is logged. */
+    compileCode: async (code) => {
+      const r = await postJson("/api/weblab/compile", { code });
+      return r.ok ? r : null;
+    },
     resetSerial: () => { state.simLines = []; state.simPartial = ""; },
-    feedSerial: (text) => collectSerial(text, "sim"), // checks in Simulate mode use this output
-    currentCard: () => simCard(),
+    feedSerial: (text) => collectSerial(text, "sim"),
+    currentCard: () => (card() ? { cardId: card().id, title: card().title, parts: card().parts } : null),
     simStarted: () => {
-      if (!state.cardId) return;
-      postJson("/api/weblab/sim_run", { learner: state.learner, card_id: state.cardId,
-        code: $("code").value }).catch(() => { /* logging is best-effort */ });
+      if (state.cardId) quietly(postJson("/api/weblab/sim_run", { learner: state.learner, card_id: state.cardId, code: $("code").value }));
     },
   };
   document.addEventListener("sprout:simchange", (ev) => queueSave({ sim: ev.detail }));
 
-  function simCard() {
-    const card = state.cardId ? state.config.cards[state.cardId] : null;
-    return card ? { cardId: card.id, title: card.title, parts: card.parts } : null;
-  }
-
-  /** Show the selected sketch. A card's own sketch comes back with the student's saved code and
-   *  wiring; starting over (fresh = true) ignores what was saved. */
-  async function loadSketch(fresh) {
-    await flushSave();
-    const sel = $("sketch");
-    const s = state.config.sketches.find((x) => x.id === sel.value);
-    const cardId = s ? s.card_id : null;
-    state.saveKey = s && s.card_id && s.id === s.card_id ? s.card_id : null;
-    let code = s ? s.code : "";
-    let sim = null;
-    if (state.saveKey && !fresh) {
-      try {
-        const w = await postJson("/api/weblab/work", { learner: state.learner, card_id: state.saveKey });
-        if (typeof w.code === "string") code = w.code;
-        sim = w.sim;
-        setSaveStatus(w.code ? "Your saved work" : "");
-      } catch (_) {
-        setSaveStatus("Could not load saved work", true);
-      }
-    } else {
-      setSaveStatus(state.saveKey ? "" : cardId ? "Practice sketch: not saved" : "");
-    }
-    $("code").value = code;
-    state.loadedCode = code;
-    state.compiled = null;
-    state.errorLines = new Set();
-    updateGutter();
-    $("size").textContent = "";
-    show($("compile-out"), []);
-    state.simLines = [];
-    state.cardId = cardId;
-    openCard();
-    document.dispatchEvent(new CustomEvent("sprout:card", { detail: { ...(simCard() || {}), sim } }));
-  }
-
-  // ---------- start ----------
+  // ------------------------------------------------------------------ start
   async function init() {
-    if (!("serial" in navigator)) $("unsupported").hidden = false;
     const r = await fetch("/api/weblab/config");
     state.config = await r.json();
     if (!state.config.compiler_ready) $("no-compiler").hidden = false;
-    if (state.config.test_mode && $("sim-example")) $("sim-example").hidden = false;
-    let savedMode = "sim";
-    try { savedMode = localStorage.getItem("sprout.mode") || "sim"; } catch (_) { /* blocked */ }
-    setMode(savedMode, false);
-    const fromUrl = new URLSearchParams(location.search).get("learner");
-    if (fromUrl && LEARNER_ID.test(fromUrl)) state.learner = fromUrl;
-    $("learner").textContent = state.learner;
+    if (!("serial" in navigator)) $("unsupported").hidden = false;
+    $("test-tag").hidden = !state.config.test_mode;
+    $("signin-demo").hidden = !state.config.test_mode;
+    if (state.config.test_mode) $("sim-example").hidden = false;
     $("llm-mode").textContent = state.config.llm_provider === "anthropic" ? "AI: Claude" : "AI: offline mock";
-    const sel = $("sketch");
-    for (const s of state.config.sketches) {
-      const o = document.createElement("option");
-      o.value = s.id;
-      o.textContent = s.title;
-      sel.appendChild(o);
-    }
-    sel.addEventListener("change", () => loadSketch(false));
-    renderCard(); // draw the card picker before any card is chosen
-    await loadSketch(false);
     $("baud").value = String(state.config.default_baud || 9600);
 
-    $("code").addEventListener("keydown", (e) => {
-      if (e.key === "Tab") {
-        e.preventDefault();
-        const ta = e.target;
-        const { selectionStart: a, selectionEnd: b } = ta;
-        ta.setRangeText("  ", a, b, "end");
-      }
+    $("signin-form").addEventListener("submit", (e) => { e.preventDefault(); signIn($("signin-code").value); });
+    $("signin-demo").addEventListener("click", () => signIn("l_demo"));
+    $("btn-switch").addEventListener("click", switchStudent);
+    $("btn-warmup").addEventListener("click", openWarmup);
+    $("btn-back").addEventListener("click", backToCards);
+    $("btn-prev").addEventListener("click", () => goStep(state.stepIdx - 1));
+    $("btn-next").addEventListener("click", () => {
+      if (state.stepIdx >= state.steps.length - 1) backToCards();
+      else goStep(state.stepIdx + 1);
     });
+    $("btn-restart").addEventListener("click", () => { $("restart-confirm").hidden = false; $("btn-restart-no").focus(); });
+    $("btn-restart-yes").addEventListener("click", startOver);
+    $("btn-restart-no").addEventListener("click", () => { $("restart-confirm").hidden = true; });
     $("btn-compile").addEventListener("click", async () => {
       state.busy = true; refreshButtons();
       try { await compile(); } catch (e) { show($("compile-out"), [["err", e.message]]); }
@@ -594,22 +727,22 @@
     $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; });
     $("btn-check").addEventListener("click", checkWork);
     $("btn-hint").addEventListener("click", askHint);
-    $("btn-back").addEventListener("click", goBack);
-    $("btn-restart").addEventListener("click", () => {
-      $("restart-confirm").hidden = false;
-      $("btn-restart-no").focus();
+    $("help-fab").addEventListener("click", openHelp);
+    $("help-close").addEventListener("click", closeHelp);
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("help").hidden) closeHelp(); });
+    $("code").addEventListener("keydown", (e) => {
+      if (e.key === "Tab") {
+        e.preventDefault();
+        e.target.setRangeText("  ", e.target.selectionStart, e.target.selectionEnd, "end");
+      }
     });
-    $("btn-restart-yes").addEventListener("click", startOver);
-    $("btn-restart-no").addEventListener("click", () => { $("restart-confirm").hidden = true; });
-    $("mode-sim").addEventListener("click", () => setMode("sim"));
-    $("mode-board").addEventListener("click", () => setMode("board"));
-    $("btn-sim-run-2").addEventListener("click", () => $("sim-run").click());
     $("code").addEventListener("input", () => {
       updateGutter();
+      updateTodos();
       queueSave({ code: $("code").value });
     });
     $("code").addEventListener("scroll", () => { $("gutter").scrollTop = $("code").scrollTop; });
-    window.addEventListener("pagehide", () => { flushSave(true); });
+    $("reflection").addEventListener("input", () => queueSave({ reflection: $("reflection").value }));
     $("baud").addEventListener("change", async () => {
       if (state.transport?.isOpen) {
         state.decoder = new TextDecoder();
@@ -620,13 +753,22 @@
       navigator.serial.addEventListener("disconnect", (e) => {
         if (state.port && e.target === state.port) {
           state.transport = null;
-          setBoardStatus("unplugged", "off");
+          setBoardStatus("unplugged: plug it in and connect again", "off");
           refreshButtons();
         }
       });
     }
+    window.addEventListener("pagehide", () => { flushSave(true); });
     refreshButtons();
+
+    const fromUrl = new URLSearchParams(location.search).get("learner");
+    const remembered = store.get("sprout.learner");
+    const id = fromUrl && LEARNER_ID.test(fromUrl) ? fromUrl : remembered && LEARNER_ID.test(remembered) ? remembered : null;
+    if (id) signIn(id);
+    else showScreen("signin");
   }
 
-  init().catch((e) => show($("compile-out"), [["err", `Could not load the page: ${e.message}`]]));
+  init().catch((e) => {
+    document.querySelector("main").prepend(el("div", "notice warn", `Could not load the page: ${e.message}`));
+  });
 })();

@@ -28,6 +28,7 @@ MAX_LINE_CHARS = 300
 MAX_MESSAGE_CHARS = 1000
 MAX_CODE_CHARS = 64_000
 MAX_SIM_CHARS = 20_000
+MAX_REFLECTION_CHARS = 4_000
 SOURCES = ("board", "sim")
 SOURCE_LABEL = {"curated": "instructor hint", "llm": "AI tutor", "generic": "general advice",
                 "none": "tutor"}
@@ -147,9 +148,22 @@ class WebTutor:
                                 code_hash=ctx.code_hash,
                                 detail={"source": "sim",
                                         **{r.id: {"passed": r.passed, "detail": r.detail} for r in results}})
+            if all(r.passed for r in results):
+                lr.tutor.progress.sim_passed(lr.tutor.logger.learner_id, card.id)
         return {"results": [{"id": r.id, "passed": r.passed, "detail": r.detail} for r in results],
                 "all_passed": all(r.passed for r in results), "source": source,
                 "completes_card": source == "board"}
+
+    def progress_summary(self, learner_id: object) -> dict:
+        """Per card: not_started / in_progress / completed, and whether the simulator passed."""
+        lr = self._learner(learner_id)
+        prog = lr.tutor.progress.load(lr.tutor.logger.learner_id)
+        out = {}
+        for cid in self.cards:
+            c = prog.cards.get(cid)
+            out[cid] = {"status": c.status if c else "not_started",
+                        "sim_passed": bool(c and c.sim_passed)}
+        return {"cards": out}
 
     def record_sim_run(self, learner_id: object, card_id: object, code: object) -> None:
         lr, card = self._learner(learner_id), self._card(card_id)
@@ -168,17 +182,24 @@ class WebTutor:
     def load_work(self, learner_id: object, card_id: object) -> dict:
         d = self._work_dir(learner_id, card_id)
         code = read_sketch(self.data_dir, learner_id, card_id)  # type: ignore[arg-type]
+        refl = d / "reflection.txt"
+        reflection = refl.read_text(encoding="utf-8") if refl.exists() else None
         sim = None
         if (d / "sim.json").exists():
             try:
                 sim = json.loads((d / "sim.json").read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 sim = None
-        return {"code": code, "sim": sim}
+        return {"code": code, "sim": sim, "reflection": reflection}
 
     def save_work(self, learner_id: object, card_id: object, code: object = None,
-                  sim: object = None) -> dict:
+                  sim: object = None, reflection: object = None) -> dict:
         d = self._work_dir(learner_id, card_id)
+        if reflection is not None:
+            if not isinstance(reflection, str) or len(reflection) > MAX_REFLECTION_CHARS:
+                raise BadRequest("reflection must be text under 4,000 characters")
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "reflection.txt").write_text(reflection, encoding="utf-8")
         if code is not None:
             if not isinstance(code, str) or len(code) > MAX_CODE_CHARS:
                 raise BadRequest("code must be text under 64 kB")

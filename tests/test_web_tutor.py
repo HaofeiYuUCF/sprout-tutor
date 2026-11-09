@@ -122,14 +122,28 @@ def test_simulator_pass_does_not_complete_the_card(web, cards):
 
 
 def test_work_is_saved_loaded_and_discarded(web):
-    assert web.load_work("l_web8", "c01_pump_light") == {"code": None, "sim": None}
+    assert web.load_work("l_web8", "c01_pump_light") == {"code": None, "sim": None, "reflection": None}
     sim = {"parts": {"led": {"x": 510, "y": 152, "flipped": False}}, "wires": [["pin:D8:6", "bb:5:a"]]}
     web.save_work("l_web8", "c01_pump_light", code="void setup(){}\nvoid loop(){}", sim=sim)
     got = web.load_work("l_web8", "c01_pump_light")
     assert got["code"].startswith("void setup") and got["sim"] == sim
+    web.save_work("l_web8", "c01_pump_light", reflection="Water in the morning.")
+    assert web.load_work("l_web8", "c01_pump_light")["reflection"] == "Water in the morning."
     web.discard_work("l_web8", "c01_pump_light")
-    assert web.load_work("l_web8", "c01_pump_light") == {"code": None, "sim": None}
+    assert web.load_work("l_web8", "c01_pump_light") == {"code": None, "sim": None, "reflection": None}
     with pytest.raises(BadRequest):
         web.save_work("l_web8", "c01_pump_light", sim={"x": "y" * 30_000})
     with pytest.raises(BadRequest):
         web.save_work("../evil", "c01_pump_light", code="x")
+
+
+def test_progress_summary_shows_sim_pass_and_completion(web, cards):
+    ref = cards["c01_pump_light"].reference.read_text(encoding="utf-8")
+    assert web.progress_summary("l_web9")["cards"]["c01_pump_light"] == {"status": "not_started",
+                                                                         "sim_passed": False}
+    web.record_compile("l_web9", "c01_pump_light", ref, CompileResult(True))
+    web.check("l_web9", "c01_pump_light", ref, ["PUMP ON", "PUMP OFF"] * 3, source="sim")
+    assert web.progress_summary("l_web9")["cards"]["c01_pump_light"] == {"status": "in_progress",
+                                                                         "sim_passed": True}
+    web.check("l_web9", "c01_pump_light", ref, ["PUMP ON", "PUMP OFF"] * 3, source="board")
+    assert web.progress_summary("l_web9")["cards"]["c01_pump_light"]["status"] == "completed"

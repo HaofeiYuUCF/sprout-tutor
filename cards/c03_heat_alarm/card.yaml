@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 2
 id: c03_heat_alarm
 title: Greenhouse heat alarm
 version: 1
@@ -30,7 +30,9 @@ tinkercad:
 steps:
   - id: simulate
     kind: simulate
-    text: Build the combined circuit in Tinkercad and confirm the LED turns on above 30 °C.
+    text: >-
+      Wire the sensor and the LED in the simulator, then press "Test my wiring". The LED
+      should blink and the sensor should report a temperature.
   - id: build
     kind: build
     text: >-
@@ -44,8 +46,8 @@ steps:
   - id: run
     kind: run
     text: >-
-      Upload. At room temperature the alarm should be OFF. Pinch the sensor until it passes
-      30 °C and watch the LED and the log switch to ON.
+      Send your code to the board. At room temperature the alarm should be OFF. Pinch the
+      sensor until it passes 30 °C and watch the LED and the messages switch to ON.
   - id: reflect
     kind: reflect
     text: >-

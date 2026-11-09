@@ -48,6 +48,14 @@ class ProgressStore:
             c.status, c.first_opened = "in_progress", _now()
         self.save(prog)
 
+    def sim_passed(self, learner_id: str, card_id: str) -> None:
+        prog = self.load(learner_id)
+        c = self._card(prog, card_id)
+        if c.status == "not_started":
+            c.status, c.first_opened = "in_progress", _now()
+        c.sim_passed = True
+        self.save(prog)
+
     def hint(self, learner_id: str, card_id: str, step: int, source: str) -> None:
         prog = self.load(learner_id)
         c = self._card(prog, card_id)
