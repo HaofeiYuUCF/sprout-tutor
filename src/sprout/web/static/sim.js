@@ -27,7 +27,8 @@ function init() {
   const COLS = 24;
   const BBX = 430;                       // x of column 1
   const ROW_Y = { a: 112, b: 132, c: 152, d: 172, e: 192, f: 232, g: 252, h: 272, i: 292, j: 312 };
-  const RAIL_Y = { "T-": 58, "T+": 78, "B+": 346, "B-": 366 };
+  // Same order as the kit's 830-point breadboard: each pair is + (red line above) then − (blue line below).
+  const RAIL_Y = { "T+": 58, "T-": 78, "B+": 346, "B-": 366 };
   const UNO = { x: 20, y: 130, w: 340, h: 220 };   // below a two-row parts tray
   const TOP = [["GND", 112], ["D13", 128], ["D12", 144], ["D11", 160], ["D10", 176], ["D9", 192],
     ["D8", 208], ["D7", 240], ["D6", 256], ["D5", 272], ["D4", 288], ["D3", 304], ["D2", 320]];
@@ -101,7 +102,7 @@ function init() {
   el("rect", { x: BBX - 26, y: 202, width: STEP * COLS + 32, height: 20, class: "bb-channel" }, gBB);
   for (const [k, y] of Object.entries(RAIL_Y)) {
     const neg = k.endsWith("-");
-    el("line", { x1: BBX - 10, y1: y + (neg ? -9 : 9), x2: BBX + STEP * (COLS - 1) + 10, y2: y + (neg ? -9 : 9),
+    el("line", { x1: BBX - 10, y1: y + (neg ? 9 : -9), x2: BBX + STEP * (COLS - 1) + 10, y2: y + (neg ? 9 : -9),
       class: neg ? "rail-neg" : "rail-pos" }, gBB);
     el("text", { x: BBX - 18, y: y + 4, class: "bb-label" }, gBB).textContent = neg ? "−" : "+";
   }
