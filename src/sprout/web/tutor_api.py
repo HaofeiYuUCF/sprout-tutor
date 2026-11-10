@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
 import shutil
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +22,8 @@ from ..hardware.board import CompileResult
 from ..tutor.checks import run_checks
 from ..tutor.context import Context, code_hash
 from ..tutor.orchestrator import STEP_NAMES, Tutor
+from ..tutor.photo_check import SYSTEM as PHOTO_SYSTEM
+from ..tutor.photo_check import build_prompt, build_questions, judge, parse_reply
 from ..workspace import read_sketch, sketch_dir, write_sketch
 
 LEARNER_ID = re.compile(r"^l_[a-z0-9]{3,12}$")
@@ -29,6 +33,8 @@ MAX_MESSAGE_CHARS = 1000
 MAX_CODE_CHARS = 64_000
 MAX_SIM_CHARS = 20_000
 MAX_REFLECTION_CHARS = 4_000
+MAX_PHOTO_BYTES = 3_000_000
+PHOTO_FEEDBACK = ("right", "wrong")
 SOURCES = ("board", "sim")
 SOURCE_LABEL = {"curated": "instructor hint", "llm": "AI tutor", "generic": "general advice",
                 "none": "tutor"}
@@ -237,6 +243,59 @@ class WebTutor:
         lr.compile_result = lr.compiled_hash = lr.last_hash = None
         lr.tutor.logger.log("work_discard", card_id=card.id, card_version=card.card.version,
                             detail={"client": "weblab"})
+
+    def photo_check(self, learner_id: object, card_id: object, image: object,
+                    keep: bool = False) -> dict:
+        """Check a photo of the student's wiring against the card's reference circuit.
+
+        The vision model only answers closed questions; `judge` (code) writes what the student
+        reads. The photo is not stored unless `keep` is set (pilot studies, with consent).
+        """
+        lr, card = self._learner(learner_id), self._card(card_id)
+        if not isinstance(image, bytes | bytearray) or image[:2] != b"\xff\xd8":
+            raise BadRequest("the photo must be a JPEG")
+        if len(image) > MAX_PHOTO_BYTES:
+            raise BadRequest("the photo is too large")
+        photo_id = time.strftime("%Y%m%d-%H%M%S") + "-" + secrets.token_hex(3)
+        q = build_questions(card.circuit)
+        t0 = time.time()
+        try:
+            reply = lr.tutor.llm.generate(PHOTO_SYSTEM, build_prompt(q), images=[bytes(image)])
+        except RuntimeError as e:        # daily AI limit (CappedLLM)
+            return {"ok": False, "message": "You have used today's AI checks. Compare your board "
+                                            "with the wiring picture by eye, or ask your instructor.",
+                    "flags": [], "photo_id": photo_id, "reason": str(e)}
+        except Exception:                # network, key, model: never break the page
+            return {"ok": False, "message": "The photo check is not available right now. Compare "
+                                            "your board with the wiring picture by eye.",
+                    "flags": [], "photo_id": photo_id}
+        seen = parse_reply(reply.text, q)
+        verdict = judge(seen, q)
+        if keep and self.data_dir is not None:
+            folder = self.data_dir / "photos" / lr.tutor.logger.learner_id / card.id
+            folder.mkdir(parents=True, exist_ok=True)
+            (folder / f"{photo_id}.jpg").write_bytes(bytes(image))
+        lr.tutor.logger.log(
+            "photo_check", card_id=card.id, card_version=card.card.version, photo_id=photo_id,
+            photo_findings=[f["code"] for f in verdict.flags], model_id=reply.model_id,
+            latency_ms=int((time.time() - t0) * 1000),
+            detail={"client": "weblab", "photo": seen.photo, "valid": seen.valid,
+                    "parts": seen.parts, "links": seen.links, "usable": verdict.usable,
+                    "more": verdict.more, "unsure": verdict.unsure, "kept": bool(keep),
+                    "bytes": len(image)})
+        return {"ok": verdict.usable, "message": verdict.message, "flags": verdict.flags,
+                "more": verdict.more, "unsure": verdict.unsure, "photo_id": photo_id}
+
+    def photo_feedback(self, learner_id: object, card_id: object, photo_id: object,
+                       verdict: object) -> None:
+        """The student says whether the photo check was right (data for the false-flag rate)."""
+        lr, card = self._learner(learner_id), self._card(card_id)
+        if verdict not in PHOTO_FEEDBACK:
+            raise BadRequest("feedback must be right or wrong")
+        if not isinstance(photo_id, str) or not re.fullmatch(r"[0-9a-f-]{1,40}", photo_id):
+            raise BadRequest("bad photo id")
+        lr.tutor.logger.log("photo_check", card_id=card.id, card_version=card.card.version,
+                            photo_id=photo_id, detail={"client": "weblab", "feedback": verdict})
 
     def hint(self, learner_id: object, card_id: object, code: object, serial: object,
              message: object = "", step_id: object = None) -> dict:

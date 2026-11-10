@@ -56,6 +56,10 @@ For a class session you may want `SPROUT_GUEST=0`, so everything recorded belong
 | `SPROUT_AI_PER_DAY` | 30 | AI hints per code per day; after that the tutor gives its general advice |
 | `SPROUT_COMPILE_PER_MIN` | 20 | code checks per network address per minute |
 | `SPROUT_HINT_PER_MIN` | 10 | hint requests per network address per minute |
+| `SPROUT_PHOTO_CHECK` | 1 | photo wiring check (needs AI hints on); `0` turns it off |
+| `SPROUT_PHOTO_PER_DAY` | 15 | photo checks per code per day |
+| `SPROUT_PHOTO_PER_MIN` | 20 | photo checks per network address per minute |
+| `SPROUT_PHOTO_KEEP` | (off) | `1` stores each checked photo on the data disk; use only with consent |
 | `SPROUT_GUESTS_PER_HOUR` | 10 | guest codes per network address per hour |
 | `SPROUT_LLM_MODEL` | `claude-sonnet-5-5` | model for the AI hints; `claude-opus-5-5` is stronger and costs more |
 | `SPROUT_ALLOWED_HOSTS` | (empty) | extra host names, e.g. a custom domain; the `onrender.com` name is automatic |

@@ -581,13 +581,22 @@
   }
 
   // ------------------------------------------------------------------ serial
+  // One live plot per source of messages (simulated board, real board); see plot.js.
+  const plots = window.SproutPlot
+    ? { sim: window.SproutPlot.create($("sim-plot")), board: window.SproutPlot.create($("board-plot")) }
+    : {};
+
   function collectSerial(text, source = "board") {
     const linesKey = source === "sim" ? "simLines" : "serialLines";
     const partKey = source === "sim" ? "simPartial" : "serialPartial";
     const parts = (state[partKey] + text).split(/\r?\n/);
     state[partKey] = parts.pop().slice(-300);
     const lines = state[linesKey];
-    for (const line of parts) if (line.trim()) lines.push(line.slice(0, 300));
+    for (const line of parts) {
+      if (!line.trim()) continue;
+      lines.push(line.slice(0, 300));
+      plots[source]?.push(line);
+    }
     if (source === "board" && state.warmup && parts.some((l) => /board is working/i.test(l)) && $("board-ok").hidden) {
       $("board-ok").hidden = false;
       store.set(`sprout.boardok.${state.learner}`, today());
@@ -708,6 +717,7 @@
       });
       const r = await uploader.upload(image);
       state.serialLines = []; // the tutor judges output from the new program only
+      plots.board?.reset();
       state.serialPartial = "";
       trial.ok = true;
       trial.upload_ms = r.ms;
@@ -877,6 +887,103 @@
     }
   }
 
+  // ------------------------------------------------------------------ photo wiring check
+  // The server asks a vision model closed questions and writes the flags itself (photo_check.py).
+  const photo = { stream: null, image: null };
+  const PHOTO_MAX_EDGE = 1568;      // larger photos add cost, not detail the model can use
+
+  function stopCamera() {
+    if (photo.stream) photo.stream.getTracks().forEach((t) => t.stop());
+    photo.stream = null;
+    $("photo-live").hidden = true;
+  }
+
+  function resetPhoto() {
+    stopCamera();
+    photo.image = null;
+    $("photo-ready").hidden = true;
+    $("photo-out").replaceChildren();
+  }
+
+  /** Draw a video frame or an image on a canvas, at most PHOTO_MAX_EDGE on its long side. */
+  function toJpeg(source, w, h) {
+    const k = Math.min(1, PHOTO_MAX_EDGE / Math.max(w, h));
+    const c = document.createElement("canvas");
+    c.width = Math.round(w * k);
+    c.height = Math.round(h * k);
+    c.getContext("2d").drawImage(source, 0, 0, c.width, c.height);
+    return c.toDataURL("image/jpeg", 0.85);
+  }
+
+  function setPhoto(dataUrl) {
+    photo.image = dataUrl;
+    $("photo-preview").src = dataUrl;
+    $("photo-ready").hidden = false;
+    $("photo-send").disabled = false;
+    $("photo-out").replaceChildren();
+  }
+
+  async function startCamera() {
+    resetPhoto();
+    try {
+      photo.stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      $("photo-video").srcObject = photo.stream;
+      $("photo-live").hidden = false;
+    } catch (_) {
+      show($("photo-out"), [["todo", "No camera is available here. Take the photo with a phone or the camera app, then press “Choose a photo”."]]);
+    }
+  }
+
+  function pickPhoto(file) {
+    if (!file) return;
+    resetPhoto();
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { setPhoto(toJpeg(img, img.naturalWidth, img.naturalHeight)); URL.revokeObjectURL(url); };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      show($("photo-out"), [["todo", "This file is not a photo the browser can read. Choose a JPG or PNG picture."]]);
+    };
+    img.src = url;
+  }
+
+  async function sendPhoto() {
+    if (!photo.image || !state.cardId) return;
+    $("photo-send").disabled = true;
+    show($("photo-out"), [["muted", "Looking at your photo. This takes about 10 to 20 seconds."]]);
+    let r;
+    try {
+      const resp = await fetch("/api/weblab/photo_check", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ learner: state.learner, card_id: state.cardId, image: photo.image }) });
+      r = await resp.json();
+      if (!resp.ok) r = { ok: false, message: r.error || "The photo check is not available right now.", flags: [] };
+    } catch (_) {
+      r = { ok: false, message: "The photo check could not reach the server. Check your connection and try again.", flags: [] };
+    }
+    const flags = r.flags || [];
+    const rows = [el("div", r.ok && !flags.length ? "pass" : "muted", r.message)];
+    for (const f of flags) rows.push(el("div", "todo", `○ ${f.text}`));
+    if (r.more) rows.push(el("div", "muted", `There ${r.more === 1 ? "is 1 more point" : `are ${r.more} more points`}. Fix these first, then take a new photo.`));
+    if (flags.length) rows.push(el("div", "muted", "Unplug the USB cable before you move any wire or part."));
+    if (r.ok && r.photo_id) {                 // was the check right? (data for the pilot)
+      const ask = el("div", "photo-ask muted", "Was this check right? ");
+      for (const [label, verdict] of [["Yes", "right"], ["No", "wrong"]]) {
+        const b = el("button", "small", label);
+        b.addEventListener("click", () => {
+          quietly(postJson("/api/weblab/photo_feedback", { learner: state.learner, card_id: state.cardId,
+            photo_id: r.photo_id, verdict }));
+          ask.textContent = "Thank you. Your answer helps us improve the check.";
+        });
+        ask.append(b);
+      }
+      rows.push(ask);
+    }
+    $("photo-out").replaceChildren(...rows);
+    $("photo-send").disabled = false;
+  }
+
   // ------------------------------------------------------------------ simulator hooks (sim.js)
   window.SproutLab = {
     compile: () => compile(),
@@ -885,7 +992,7 @@
       const r = await postJson("/api/weblab/compile", { code });
       return r.ok ? r : null;
     },
-    resetSerial: () => { state.simLines = []; state.simPartial = ""; },
+    resetSerial: () => { state.simLines = []; state.simPartial = ""; plots.sim?.reset(); },
     feedSerial: (text) => collectSerial(text, "sim"),
     currentCard: () => (card() ? { cardId: card().id, title: card().title, parts: card().parts } : null),
     simStarted: () => {
@@ -899,6 +1006,10 @@
     const r = await fetch("/api/weblab/config");
     state.config = await r.json();
     if (!state.config.compiler_ready) $("no-compiler").hidden = false;
+    $("photo-box").hidden = !state.config.photo_check;
+    if (state.config.photo_kept) {
+      $("photo-privacy").textContent = "The photo is sent to the AI service for this check and is stored for the class study.";
+    }
     if (!("serial" in navigator)) $("unsupported").hidden = false;
     $("test-tag").hidden = !state.config.test_mode;
     $("signin-demo").hidden = !state.config.test_mode;
@@ -940,8 +1051,25 @@
     $("btn-upload").addEventListener("click", upload);
     $("btn-connect").addEventListener("click", connect);
     $("btn-disconnect").addEventListener("click", disconnect);
-    $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; });
+    $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; plots.board?.reset(); });
     $("btn-check").addEventListener("click", checkWork);
+    $("photo-camera").addEventListener("click", startCamera);
+    $("photo-cancel").addEventListener("click", stopCamera);
+    $("photo-pick").addEventListener("click", () => $("photo-file").click());
+    $("photo-file").addEventListener("change", (e) => { pickPhoto(e.target.files[0]); e.target.value = ""; });
+    $("photo-shoot").addEventListener("click", () => {
+      const v = $("photo-video");
+      if (!v.videoWidth) return;
+      const shot = toJpeg(v, v.videoWidth, v.videoHeight);
+      stopCamera();
+      setPhoto(shot);
+    });
+    $("photo-send").addEventListener("click", sendPhoto);
+    document.addEventListener("sprout:card", resetPhoto);          // another card: start clean
+    document.addEventListener("sprout:mode", () => {               // another step: camera off, plots fit
+      stopCamera();
+      plots.sim?.redraw(); plots.board?.redraw();
+    });
     $("btn-hint").addEventListener("click", askHint);
     $("help-fab").addEventListener("click", openHelp);
     $("btn-basics").addEventListener("click", () => { $("glossary").hidden = false; learn("explain", "glossary.open"); });

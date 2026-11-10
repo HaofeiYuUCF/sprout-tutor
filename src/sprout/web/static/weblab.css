@@ -349,3 +349,16 @@ details.more p { margin: 6px 0 0; font-size: 13.5px; color: var(--fg); }
 .cmd-list dt code { font-size: 13px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
 .cmd-list dd { margin: 0 0 6px; color: var(--muted); }
 .out .explain { font-family: "Segoe UI", system-ui, -apple-system, sans-serif; font-size: 13.5px; color: var(--fg); margin: 0 0 6px 14px; }
+
+/* ---------- live plot of readings ---------- */
+.plot-box { display: flex; flex-direction: column; gap: 4px; }
+.plot-head { display: flex; align-items: center; gap: 8px; }
+.plot-field { font-size: 13px; padding: 2px 4px; }
+.plot-box canvas { width: 100%; height: 150px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); display: block; }
+.plot-legend { font-size: 12.5px; }
+
+/* ---------- photo wiring check ---------- */
+.photo-box { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.photo-stage { display: flex; flex-direction: column; gap: 8px; }
+.photo-stage video, .photo-stage img { width: 100%; max-width: 520px; border-radius: 8px; background: #000; display: block; }
+.photo-ask { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }

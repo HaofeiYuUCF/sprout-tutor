@@ -12,6 +12,10 @@ and on a server (deploy/.env):
   SPROUT_AI_PER_DAY=30        AI hints per student per day (curated hints are never capped)
   SPROUT_COMPILE_PER_MIN=20   compiles per client address per minute
   SPROUT_HINT_PER_MIN=10      hint requests per client address per minute
+  SPROUT_PHOTO_CHECK=0        turn the photo wiring check off (it is on when AI hints are on)
+  SPROUT_PHOTO_PER_DAY=15     photo checks per student per day
+  SPROUT_PHOTO_PER_MIN=20     photo checks per client address per minute
+  SPROUT_PHOTO_KEEP=1         store checked photos under data/photos (pilot studies, with consent)
 """
 
 from __future__ import annotations

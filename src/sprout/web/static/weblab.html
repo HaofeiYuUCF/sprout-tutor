@@ -161,6 +161,12 @@
         <ul id="sim-feedback" class="sim-feedback" aria-live="polite"></ul>
         <span class="label">Messages from the simulated board</span>
         <pre id="sim-serial" class="monitor sim-serial"></pre>
+        <div id="sim-plot" class="plot-box" hidden>
+          <div class="plot-head"><span class="label">Readings over time</span>
+            <select class="plot-field" aria-label="Value to plot"></select></div>
+          <canvas height="150"></canvas>
+          <div class="plot-legend muted"></div>
+        </div>
       </section>
 
       <!-- check my work (simulator or real board) -->
@@ -186,6 +192,24 @@
             <ul id="build-safety" class="safety"></ul>
           </div>
         </div>
+        <div id="photo-box" class="photo-box" hidden>
+          <span class="label">Check your wiring with a photo (optional)</span>
+          <p class="muted tight">Take a photo of your UNO and breadboard from straight above, in good light, with the wires spread apart. An AI model looks at the photo, and this page lists what to check. It can be wrong, so you decide. <span id="photo-privacy">The photo is sent to the AI service for this check and is not saved.</span> Keep faces and names out of the picture.</p>
+          <div class="actions">
+            <button id="photo-camera">Use this computer's camera</button>
+            <button id="photo-pick">Choose a photo</button>
+            <input type="file" id="photo-file" accept="image/*" hidden>
+          </div>
+          <div id="photo-live" class="photo-stage" hidden>
+            <video id="photo-video" autoplay playsinline muted></video>
+            <div class="actions"><button id="photo-shoot" class="primary">Take photo</button><button id="photo-cancel" class="small">Close camera</button></div>
+          </div>
+          <div id="photo-ready" class="photo-stage" hidden>
+            <img id="photo-preview" alt="Your photo of the circuit">
+            <div class="actions"><button id="photo-send" class="primary">Check this photo</button></div>
+          </div>
+          <div id="photo-out" class="checks" aria-live="polite"></div>
+        </div>
       </section>
 
       <!-- real board -->
@@ -210,6 +234,12 @@
         </ol>
         <span class="label">Messages from your board</span>
         <pre id="monitor" class="monitor" aria-live="off"></pre>
+        <div id="board-plot" class="plot-box" hidden>
+          <div class="plot-head"><span class="label">Readings over time</span>
+            <select class="plot-field" aria-label="Value to plot"></select></div>
+          <canvas height="150"></canvas>
+          <div class="plot-legend muted"></div>
+        </div>
         <details class="advanced">
           <summary>Advanced</summary>
           <div class="actions">
@@ -271,6 +301,7 @@
 <script src="/weblab/static/stk500.js"></script>
 <script src="/weblab/static/parts.js"></script>
 <script src="/weblab/static/concepts.js"></script>
+<script src="/weblab/static/plot.js"></script>
 <script src="/weblab/static/weblab.js"></script>
 <script type="module" src="/weblab/static/sim.js"></script>
 </body>

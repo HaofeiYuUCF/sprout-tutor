@@ -106,6 +106,9 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     public = public_mode()
     test_mode = os.environ.get("SPROUT_WEBLAB_TEST") == "1" and not public   # never on a public site
     photos = not public or flag("SPROUT_PHOTOS")
+    # Photo wiring check: needs the AI service. On by default; SPROUT_PHOTO_CHECK=0 turns it off.
+    photo_check = s.llm.provider == "anthropic" and os.environ.get("SPROUT_PHOTO_CHECK", "1") != "0"
+    photo_keep = flag("SPROUT_PHOTO_KEEP")      # store checked photos (pilot studies, with consent)
     cards = load_cards(root)
     roster = Roster(Path(os.environ.get("SPROUT_ROSTER") or d / "roster.txt"), d / "guests.txt",
                     public, flag("SPROUT_GUEST"))
@@ -122,6 +125,8 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     hint_limit = RateLimiter(env_int("SPROUT_HINT_PER_MIN", 10), 60)
     api_limit = RateLimiter(env_int("SPROUT_API_PER_MIN", 300), 60)
     guest_limit = RateLimiter(env_int("SPROUT_GUESTS_PER_HOUR", 10), 3600)
+    photo_limit = RateLimiter(env_int("SPROUT_PHOTO_PER_MIN", 20), 60)
+    photo_cap = DailyCap(env_int("SPROUT_PHOTO_PER_DAY", 15))      # per student code
 
     app.add_static_files("/weblab/static", STATIC, max_cache_age=0)
     if test_mode:
@@ -201,6 +206,8 @@ def register(app: FastAPI, root: Path | None = None) -> None:
             "roster_required": roster.required,
             "guest_allowed": roster.guests_enabled,
             "compiler_ready": service.available(),
+            "photo_check": photo_check,
+            "photo_kept": photo_check and photo_keep,
             "known_boards": [{"usbVendorId": v, "usbProductId": p, "name": n}
                              for (v, p), n in KNOWN.items()],
             "default_baud": s.board.baud,
@@ -322,6 +329,37 @@ def register(app: FastAPI, root: Path | None = None) -> None:
         return await tutor_call(request, lambda b: tutor.hint(
             b.get("learner"), b.get("card_id"), b.get("code"), b.get("serial"),
             b.get("message"), b.get("step_id")))
+
+    @app.post("/api/weblab/photo_check")
+    async def weblab_photo_check(request: Request):
+        if not photo_check:
+            return JSONResponse({"error": "not available on this site"}, 404)
+        if not photo_limit.allow(client_key(request)):
+            return too_many("Many photos were checked in the last minute. Wait a moment, then try again.")
+
+        def act(b):
+            image = b.get("image")
+            prefix = "data:image/jpeg;base64,"
+            if not isinstance(image, str) or not image.startswith(prefix):
+                raise BadRequest("image must be a JPEG data URL")
+            try:
+                data = base64.b64decode(image[len(prefix):], validate=True)
+            except ValueError:
+                raise BadRequest("bad image data") from None
+            learner = b.get("learner")
+            if isinstance(learner, str) and not photo_cap.take(learner):
+                return {"ok": False, "flags": [], "message":
+                        "You have used today's photo checks. Compare your board with the wiring "
+                        "picture by eye, or ask your instructor."}
+            return tutor.photo_check(learner, b.get("card_id"), data, keep=photo_keep)
+        return await tutor_call(request, act)
+
+    @app.post("/api/weblab/photo_feedback")
+    async def weblab_photo_feedback(request: Request):
+        def act(b):
+            tutor.photo_feedback(b.get("learner"), b.get("card_id"), b.get("photo_id"), b.get("verdict"))
+            return {"ok": True}
+        return await tutor_call(request, act)
 
     @app.post("/api/weblab/trial")
     async def weblab_trial(request: Request):
