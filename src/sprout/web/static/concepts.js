@@ -102,7 +102,9 @@
     ["analog", "Digital and analog", "Digital means only on or off. Analog means every value in between: analogRead gives 0 to 1023."],
     ["sketch", "Sketch", "Your program. setup() runs once at the start; loop() runs again and again."],
     ["delay", "delay(ms)", "Waits a number of milliseconds. delay(1000) waits 1 second."],
-    ["serial", "Messages from the board", "Serial.println sends a line of text to the computer, so you can see what your code is doing."],
+    ["serial", "Messages from the board (serial)", "Serial.println sends a line of text to the computer through the USB cable, one bit at a time, so you can see what your code is doing."],
+    ["baud", "Baud rate", "The speed of serial messages. Serial.begin(9600) means 9600 bits per second. The board and the computer must use the same speed, or the text turns into nonsense."],
+    ["txrx", "TX and RX", "TX means transmit (send) and RX means receive. The two small lights on the board flicker while data moves. Pins 0 and 1 carry it, so leave them free."],
     ["check", "Check my code", "The computer checks your code and turns it into something the board can run. Errors show the line number."],
   ];
 

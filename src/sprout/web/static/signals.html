@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How parts talk to your board · SPROUT Web Lab</title>
+<link rel="stylesheet" href="/weblab/static/weblab.css">
+<style>
+  .ways { display: flex; flex-direction: column; gap: 16px; max-width: 1100px; }
+  .way { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .way { grid-template-columns: minmax(0, 1fr); } }
+  .way h2 { margin: 0 0 6px; font-size: 19px; }
+  .way p { margin: 0 0 8px; }
+  .way .used { font-weight: 600; color: var(--accent); }
+  .tag-used, .tag-later { display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 999px; margin-bottom: 6px; }
+  .tag-used { background: var(--accent-soft); color: var(--accent); }
+  .tag-later { background: var(--warn-bg); color: var(--warn-fg); }
+  .demo { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; background: var(--code-bg); }
+  .demo canvas { width: 100%; height: 70px; display: block; }
+  .demo .big { font-size: 20px; font-weight: 700; }
+  .lamp { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: #5b2a2a; border: 2px solid var(--line); vertical-align: middle; margin-right: 8px; }
+  .lamp.on { background: #ff4d3d; box-shadow: 0 0 12px 3px rgba(255, 77, 61, 0.65); }
+  .meter { height: 14px; border-radius: 7px; background: var(--line); overflow: hidden; }
+  .meter > div { height: 100%; width: 0; background: var(--accent); }
+  .bits { display: flex; gap: 3px; flex-wrap: wrap; }
+  .bits span { min-width: 30px; text-align: center; padding: 4px 0 2px; border-radius: 5px; border: 1px solid var(--line); font-weight: 700; font-size: 15px; background: var(--panel); }
+  .bits span small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); }
+  .bits span.frame { background: var(--accent-soft); }
+  .screen-out { font-family: ui-monospace, Consolas, monospace; background: var(--mon-bg); color: var(--mon-fg); padding: 8px 10px; border-radius: 6px; min-height: 22px; word-break: break-all; }
+  .demo label { font-size: 13.5px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .demo input[type="text"] { font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); width: 11em; }
+  .demo select { font: inherit; padding: 3px 6px; }
+  .later-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); font-size: 14.5px; }
+  .later-list b { display: block; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">SPROUT <span>Web Lab</span></div>
+  <span class="spacer"></span>
+  <a class="link" href="/weblab">← Back to the cards</a>
+</header>
+
+<main class="screen">
+  <div>
+    <h1>How parts talk to your board</h1>
+    <p class="muted">A sensor has to tell the board what it measured, and the board has to tell a light or a fan what to do. There are a few ways to do this. In the Seed cards you use only the first three. Try each one below. It takes about five minutes.</p>
+  </div>
+
+  <div class="ways">
+    <!-- 1 digital -->
+    <section class="panel way">
+      <div>
+        <span class="tag-used">Used in these cards</span>
+        <h2>1. Digital: on or off</h2>
+        <p>The simplest message has two values. The pin is either HIGH (5 volts) or LOW (0 volts), with nothing in between.</p>
+        <p>Your code uses it to switch things: <code>digitalWrite(pin, HIGH)</code> turns a pin on.</p>
+        <p class="used">In the cards: the LED (Card 1), the fan (Card 3) and the buzzer (Card 4).</p>
+      </div>
+      <div class="demo" aria-label="Digital demo">
+        <div><span id="d-lamp" class="lamp"></span><span id="d-text" class="big">Pin 9 is LOW (0 V)</span></div>
+        <canvas id="d-trace" height="70" aria-hidden="true"></canvas>
+        <div class="actions"><button id="d-toggle" class="primary">Switch pin 9</button><span class="muted">The line shows the pin over time.</span></div>
+      </div>
+    </section>
+
+    <!-- 2 analog -->
+    <section class="panel way">
+      <div>
+        <span class="tag-used">Used in these cards</span>
+        <h2>2. Analog: a voltage that changes smoothly</h2>
+        <p>Many sensors answer with a voltage that rises and falls with what they measure. An analog input reads how high that voltage is and gives your code a number from 0 to 1023.</p>
+        <p>Your code reads it with <code>analogRead(pin)</code>.</p>
+        <p class="used">In the cards: the temperature sensor on pin A0 (Cards 2, 4 and 5).</p>
+      </div>
+      <div class="demo" aria-label="Analog demo">
+        <label>Voltage from the sensor <input id="a-volts" type="range" min="0" max="5" step="0.01" value="2.5" aria-label="Voltage from the sensor"></label>
+        <div class="big" id="a-text">2.50 V → your code gets 512</div>
+        <div class="meter" aria-hidden="true"><div id="a-bar"></div></div>
+        <div class="muted" id="a-digital">A digital pin would only see: HIGH</div>
+      </div>
+    </section>
+
+    <!-- 3 serial -->
+    <section class="panel way">
+      <div>
+        <span class="tag-used">Used in these cards</span>
+        <h2>3. Serial: text, one bit at a time</h2>
+        <p>The board sends text to your computer through the USB cable. Each letter becomes a row of bits, and the bits travel one after the other. This way of sending is called serial, or UART.</p>
+        <p>Both sides must agree on the speed, called the <b>baud rate</b>: 9600 baud means 9600 bits per second. If the board sends at one speed and the computer listens at another, the text turns into nonsense.</p>
+        <p>Your code sets the speed with <code>Serial.begin(9600)</code> and sends a line with <code>Serial.println("LED ON")</code>. The small lights TX and RX on the board flicker while data moves.</p>
+        <p class="used">In the cards: "Messages from the board", in every card.</p>
+      </div>
+      <div class="demo" aria-label="Serial demo">
+        <label>The board sends <input id="s-text" type="text" value="LED ON" maxlength="24" aria-label="Text the board sends"> at 9600 baud</label>
+        <div>
+          <div class="muted" id="s-bits-label">The first letter as bits:</div>
+          <div id="s-bits" class="bits"></div>
+        </div>
+        <label>The computer listens at
+          <select id="s-baud" aria-label="Speed the computer listens at">
+            <option value="4800">4800 baud</option>
+            <option value="9600" selected>9600 baud</option>
+            <option value="19200">19200 baud</option>
+            <option value="115200">115200 baud</option>
+          </select>
+        </label>
+        <div class="screen-out" id="s-out" aria-live="polite"></div>
+        <div class="muted" id="s-note"></div>
+      </div>
+    </section>
+
+    <!-- later -->
+    <section class="panel">
+      <span class="tag-later">Not in these cards</span>
+      <h2 style="margin:0 0 8px;font-size:19px">Other ways you will meet later</h2>
+      <p class="muted" style="margin-top:0">Many sensors use these. You do not need them for the Seed cards, so here are only their names and one line each.</p>
+      <ul class="later-list">
+        <li><b>I2C</b>Several sensors share two wires, and each sensor has its own address. Common for humidity sensors and small displays. On the UNO the two wires are the pins marked SDA and SCL.</li>
+        <li><b>SPI</b>A faster link with four wires, used for memory cards and some displays.</li>
+        <li><b>1-Wire</b>One data wire for many sensors, used by some soil-temperature probes.</li>
+        <li><b>SDI-12</b>The standard for field sensors that growers and researchers bury in soil, such as soil-moisture probes.</li>
+      </ul>
+    </section>
+
+    <!-- check -->
+    <section class="panel">
+      <span class="label">Check yourself (not graded)</span>
+      <div id="quiz" class="quiz"></div>
+      <p id="quiz-done" class="muted" hidden></p>
+    </section>
+  </div>
+</main>
+
+<script type="module">
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+let learner = null;
+try { learner = localStorage.getItem("sprout.learner"); } catch (_) { /* blocked */ }
+function learn(kind, item, correct) {
+  if (!learner) return;
+  fetch("/api/weblab/learn", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ learner, card_id: null, kind, item, ...(kind === "quiz" ? { correct } : {}) }) }).catch(() => {});
+}
+learn("explain", "signals.open");
+
+// ---------------------------------------------------------------- 1 digital
+const digital = { high: false, trace: new Array(60).fill(0) };
+function drawTrace() {
+  const c = $("d-trace"), css = getComputedStyle(document.body);
+  const dpr = window.devicePixelRatio || 1, W = c.clientWidth || 300, H = 70;
+  if (c.width !== Math.round(W * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+  const g = c.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  g.font = "11px system-ui, sans-serif";
+  g.fillStyle = css.getPropertyValue("--muted").trim() || "#666";
+  g.fillText("5 V", 2, 14); g.fillText("0 V", 2, H - 6);
+  g.strokeStyle = css.getPropertyValue("--accent").trim() || "#2a7";
+  g.lineWidth = 2.5;
+  g.beginPath();
+  const x0 = 30, step = (W - x0 - 4) / (digital.trace.length - 1), y = (v) => (v ? 10 : H - 10);
+  digital.trace.forEach((v, i) => {
+    if (i === 0) g.moveTo(x0, y(v));
+    else { g.lineTo(x0 + i * step, y(digital.trace[i - 1])); g.lineTo(x0 + i * step, y(v)); }
+  });
+  g.stroke();
+}
+function showDigital() {
+  $("d-lamp").classList.toggle("on", digital.high);
+  $("d-text").textContent = digital.high ? "Pin 9 is HIGH (5 V)" : "Pin 9 is LOW (0 V)";
+}
+$("d-toggle").addEventListener("click", () => { digital.high = !digital.high; showDigital(); });
+setInterval(() => { digital.trace.push(digital.high ? 1 : 0); digital.trace.shift(); drawTrace(); }, 120);
+showDigital();
+
+// ---------------------------------------------------------------- 2 analog
+function showAnalog() {
+  const v = Number($("a-volts").value), n = Math.round((v / 5) * 1023);
+  $("a-text").textContent = `${v.toFixed(2)} V → your code gets ${n}`;
+  $("a-bar").style.width = `${(v / 5) * 100}%`;
+  $("a-digital").textContent = `A digital pin would only see: ${v >= 3 ? "HIGH" : v <= 1.5 ? "LOW" : "HIGH or LOW (not sure)"}`;
+}
+$("a-volts").addEventListener("input", showAnalog);
+showAnalog();
+
+// ---------------------------------------------------------------- 3 serial
+/** What the screen shows when the listening speed is wrong: the same data, read as nonsense. */
+function garble(text, sent, heard) {
+  if (sent === heard) return text;
+  const junk = "¤þ¬ÿ□x~`ø¿ýæ{}|^";
+  let out = "";
+  const per = heard > sent ? Math.min(3, Math.round(heard / sent)) : 1;       // too fast: extra characters
+  [...text].forEach((ch, i) => {
+    if (heard < sent && i % Math.round(sent / heard) !== 0) return;             // too slow: letters are missed
+    for (let k = 0; k < per; k++) out += junk[(ch.charCodeAt(0) * 7 + i * 13 + k * 5 + heard / 1200) % junk.length | 0];
+  });
+  return out;
+}
+function showSerial() {
+  const text = $("s-text").value, heard = Number($("s-baud").value);
+  const first = text[0];
+  const bits = $("s-bits");
+  bits.replaceChildren();
+  if (first !== undefined) {
+    const code = first.charCodeAt(0) & 0xff;
+    const cell = (v, label, frame) => { const s = el("span", frame ? "frame" : "", String(v)); s.append(el("small", "", label)); return s; };
+    bits.append(cell(0, "start", true));
+    for (let i = 0; i < 8; i++) bits.append(cell((code >> i) & 1, `bit ${i}`));
+    bits.append(cell(1, "stop", true));
+    $("s-bits-label").textContent = `The first character, "${first}", as bits (sent from left to right):`;
+  } else {
+    $("s-bits-label").textContent = "Type some text above.";
+  }
+  $("s-out").textContent = garble(text, 9600, heard);
+  $("s-note").textContent = heard === 9600
+    ? "Both sides use 9600 baud, so the text arrives as it was sent."
+    : "The speeds differ, so the computer reads the bits at the wrong moments. Both sides must use the same baud rate.";
+}
+$("s-text").addEventListener("input", showSerial);
+$("s-baud").addEventListener("change", showSerial);
+showSerial();
+
+// ---------------------------------------------------------------- check yourself
+const QUESTIONS = [
+  { id: "analog_pin", q: "A temperature sensor gives a voltage that changes smoothly. Which kind of pin reads it?",
+    options: ["An analog input (A0 to A5)", "A digital pin", "The USB port"], right: 0,
+    why: "An analog input reads how high the voltage is, as a number from 0 to 1023." },
+  { id: "baud_mismatch", q: "Your screen shows strange characters where it should say LED ON. What is the most likely cause?",
+    options: ["The LED is the wrong way round", "The board and the computer use different baud rates", "The resistor is missing"], right: 1,
+    why: "Nonsense text almost always means the two speeds do not match." },
+  { id: "digital_signal", q: "A buzzer is either sounding or silent. Which kind of signal controls it?",
+    options: ["Analog", "Serial", "Digital"], right: 2,
+    why: "Two states, on or off: that is digital." },
+];
+let answered = 0, firstRight = 0;
+$("quiz").replaceChildren(...QUESTIONS.map((item) => {
+  const box = el("div", "quiz-q");
+  const actions = el("div", "actions"), feedback = el("div", "feedback muted");
+  let tries = 0, done = false;
+  item.options.forEach((label, i) => {
+    const b = el("button", "", label);
+    b.addEventListener("click", () => {
+      if (done) return;
+      tries += 1;
+      const ok = i === item.right;
+      if (tries === 1) learn("quiz", `signals.${item.id}`, ok);
+      b.classList.add(ok ? "right" : "wrong");
+      feedback.textContent = ok ? `✓ ${item.why}` : "Not this one. Try again.";
+      if (ok) {
+        done = true;
+        answered += 1;
+        if (tries === 1) firstRight += 1;
+        if (answered === QUESTIONS.length) {
+          $("quiz-done").hidden = false;
+          $("quiz-done").textContent = `All ${QUESTIONS.length} answered, ${firstRight} on the first try. You can go back to the cards.`;
+        }
+      }
+    });
+    actions.append(b);
+  });
+  box.append(el("p", "", item.q), actions, feedback);
+  return box;
+}));
+</script>
+</body>
+</html>

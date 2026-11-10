@@ -170,6 +170,11 @@ def register(app: FastAPI, root: Path | None = None) -> None:
         """Get to know your board: a 3D model of the UNO with clickable parts."""
         return _guard(request) or FileResponse(STATIC / "board.html", headers=FRESH)
 
+    @app.get("/weblab/signals")
+    def signals_page(request: Request):
+        """How parts talk to your board: digital, analog, serial; other ways named only."""
+        return _guard(request) or FileResponse(STATIC / "signals.html", headers=FRESH)
+
     @app.get("/weblab/camera")
     def camera_page(request: Request):
         if not photos:
