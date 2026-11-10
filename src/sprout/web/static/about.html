@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About · SPROUT Web Lab</title>
+<link rel="stylesheet" href="/weblab/static/weblab.css">
+<style>
+  .about { max-width: 760px; display: flex; flex-direction: column; gap: 14px; }
+  .about h2 { margin: 0 0 6px; font-size: 18px; }
+  .about p { margin: 0 0 8px; }
+  .about ul { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; }
+  .about .contact { font-size: 17px; font-weight: 600; }
+  .about a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">SPROUT <span>Web Lab</span></div>
+  <span class="spacer"></span>
+  <a class="link" href="/weblab">← Back to the lab</a>
+</header>
+
+<main class="screen">
+  <div class="about">
+    <h1>About SPROUT Web Lab</h1>
+
+    <section class="panel">
+      <h2>What it is</h2>
+      <p>SPROUT Web Lab is a free practice lab for beginners. You learn the electronics behind smart farming by building a small greenhouse controller, one short project at a time: first in a simulator, then on a real Arduino board. A tutor gives hints when you are stuck.</p>
+      <p>The lab is a prototype. Parts of it will change, and some things may not work yet.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Who makes it</h2>
+      <p>The lab is developed by Dr. Haofei Yu's group in the Department of Civil, Environmental, and Construction Engineering at the University of Central Florida.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Questions or problems</h2>
+      <p>Write to Haofei Yu:</p>
+      <p class="contact"><a href="mailto:haofei.yu@ucf.edu">haofei.yu@ucf.edu</a></p>
+      <p class="muted">It helps if you say which card and step you were on, what you expected, and what happened. You can include your sign-in code. You do not need to give your name.</p>
+    </section>
+
+    <section class="panel">
+      <h2>What you need</h2>
+      <ul>
+        <li>A laptop or Chromebook with Google Chrome or Microsoft Edge.</li>
+        <li>For the last steps of each card: an Arduino UNO board and a few parts. The simulator and code steps work without them.</li>
+      </ul>
+    </section>
+
+    <section class="panel">
+      <h2>What the lab stores</h2>
+      <p>The lab does not ask for your name or your e-mail address. With your sign-in code it stores:</p>
+      <ul>
+        <li>your code and your wiring for each card, so that you can continue later;</li>
+        <li>whether your code could be checked and whether your work passed;</li>
+        <li>which hints you asked for, the questions you typed to the tutor, and your answers to the "check yourself" questions;</li>
+        <li>your answer when the lab asks whether you are interested in a Grow team.</li>
+      </ul>
+      <p>Your browser also remembers your sign-in code on this computer.</p>
+      <p>We use these records to improve the lab and to see what helps students learn. We do not publish anything that identifies you. If the records are used in a research study, your instructor will tell you and ask for your consent first.</p>
+    </section>
+
+    <section class="panel">
+      <h2>How the AI is used</h2>
+      <p>Some hints are written by an AI model (Claude, made by Anthropic). To write a hint, the lab sends the model your code, the latest messages from your board, and your question. The tutor is built to give hints, not answers, and it can be wrong.</p>
+      <p>If you use the photo check, your photo is sent to the same service for that one check. It is not saved, unless your instructor has told you that your class takes part in a study. Keep faces and names out of the picture.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Built with</h2>
+      <p class="muted">Open-source software, including the Arduino CLI (compiling), avr8js (the simulated board) and three.js (the 3D board).</p>
+    </section>
+  </div>
+</main>
+</body>
+</html>

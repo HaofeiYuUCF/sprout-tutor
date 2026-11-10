@@ -368,3 +368,7 @@ details.more p { margin: 6px 0 0; font-size: 13.5px; color: var(--fg); }
 .grow > div:first-child { flex: 1 1 380px; }
 .grow h2 { margin: 0 0 4px; }
 .grow p { margin: 0 0 4px; }
+
+/* ---------- link to the About page ---------- */
+.about-link { color: var(--muted); font-size: 13.5px; }
+.about-link:hover { color: var(--accent); }
