@@ -28,6 +28,9 @@ from .public import CappedLLM, DailyCap, RateLimiter, Roster, allowed_hosts, env
 from .tutor_api import BadRequest, WebTutor, card_view
 
 STATIC = Path(__file__).parent / "static"
+# The page must be re-checked on every visit. Without this header a browser may keep an old copy
+# of the page for a while after a deploy and run it with the new scripts, which breaks it.
+FRESH = {"Cache-Control": "no-cache"}
 log = logging.getLogger("sprout.weblab")
 MAX_PHOTO_BYTES = 8_000_000
 SAFE_NAME = re.compile(r"^[a-z0-9_]{1,40}$")
@@ -157,13 +160,13 @@ def register(app: FastAPI, root: Path | None = None) -> None:
 
     @app.get("/weblab")
     def weblab_page(request: Request):
-        return _guard(request) or FileResponse(STATIC / "weblab.html")
+        return _guard(request) or FileResponse(STATIC / "weblab.html", headers=FRESH)
 
     @app.get("/weblab/camera")
     def camera_page(request: Request):
         if not photos:
             return JSONResponse({"error": "not available on this site"}, 404)
-        return _guard(request) or FileResponse(STATIC / "camera.html")
+        return _guard(request) or FileResponse(STATIC / "camera.html", headers=FRESH)
 
     @app.post("/api/weblab/photo")
     async def weblab_photo(request: Request):
