@@ -32,17 +32,27 @@ const BOTTOM_PINS = [
 // ------------------------------------------------------------------ what the student reads
 const GROUPS = {
   digital: {
-    title: "Digital pins 0 to 13",
+    title: "Digital pins 0 to 13", noun: "digital pins (0 to 13)",
     text: "Each of these pins is either ON (5 volts) or OFF (0 volts), and your code decides which. You use them to switch things, such as a light or a fan. The pins marked ~ can also dim a light or slow a motor.",
   },
   analog: {
-    title: "Analog inputs A0 to A5",
+    title: "Analog inputs A0 to A5", noun: "analog inputs (A0 to A5)",
     text: "These pins measure a voltage and give your code a number from 0 to 1023. You use them to read sensors that change smoothly, such as a temperature sensor.",
   },
   power: {
-    title: "Power pins",
-    text: "5V and GND are the two ends of the board's power. Every circuit is a loop: it starts at 5V or at a numbered pin and must come back to GND. The other pins in this group are for special cases; you will not need them in these cards.",
+    title: "Power pins", noun: "power pins",
+    text: "5V and GND are the two ends of the board's power. Every circuit is a loop: it starts at 5V or at a numbered pin and must come back to GND. 3.3V is a second, lower supply. The other pins in this group are for special cases; you will not need them in these cards.",
   },
+  special: {
+    title: "Special pins", noun: "special pins",
+    text: "AREF, SDA and SCL are for special uses, such as some advanced sensors. You will not need them in these cards.",
+  },
+};
+const GROUP_PINS = {
+  digital: ["d0", "d1", "d2", "d3", "d4", "d5", "d6", "d7", "d8", "d9", "d10", "d11", "d12", "d13"],
+  analog: ["a0", "a1", "a2", "a3", "a4", "a5"],
+  power: ["ioref", "rstpin", "v33", "v5", "gnd1", "gnd2", "vin", "gnd3"],
+  special: ["aref", "sda", "scl", "nc"],
 };
 const PARTS = {
   usb: { title: "USB port", text: "The cable to your computer plugs in here. It does two jobs: it gives the board power, and it carries your code to the board and the board's messages back to your screen." },
@@ -54,7 +64,7 @@ const PARTS = {
   led_l: { title: "Light L", text: "A small built-in light, wired to pin 13. When you check that your board works, this is the light that blinks." },
   led_tx: { title: "Lights TX and RX", text: "They flicker when the board sends (TX) or receives (RX) data, for example while your code travels to the board." },
   led_on: { title: "Light ON", text: "It is lit whenever the board has power. If it is dark, check the USB cable." },
-  icsp: { title: "ICSP pins", text: "A second way to load code, used in factories and for repairs. Leave these pins alone." },
+  icsp: { title: "Service pins (do not use)", text: "These bare pins are a second way to load code, used in factories and for repairs. The board labels them ICSP. You will not use them, so do not connect anything to them." },
   supply: { title: "Power parts", text: "These parts keep the board's voltage steady. You do not connect anything to them." },
 };
 const PIN_NOTES = {
@@ -77,21 +87,22 @@ const PIN_NOTES = {
   scl: "You will not need this pin in these cards.",
   nc: "This pin is not connected to anything.",
 };
-const groupOf = (id) => (/^d\d+$/.test(id) ? "digital" : /^a\d$/.test(id) ? "analog" : "power");
+const groupOf = (id) => Object.keys(GROUP_PINS).find((g) => GROUP_PINS[g].includes(id)) || "special";
 const PIN_NAME = Object.fromEntries([...TOP_PINS, ...BOTTOM_PINS].map((p) => [p[0], p[3]]));
 
 /** Title and text for a click target (a pin or a part). */
 export function describe(id) {
   if (PARTS[id]) return { id, kind: "part", name: PARTS[id].title, title: PARTS[id].title, text: PARTS[id].text, note: "" };
+  if (GROUPS[id]) return { id, kind: "group", group: id, name: GROUPS[id].title, title: GROUPS[id].title, text: GROUPS[id].text, note: "" };
   const g = GROUPS[groupOf(id)];
-  return { id, kind: "pin", group: groupOf(id), name: PIN_NAME[id], title: `${PIN_NAME[id]}: one of the ${g.title.toLowerCase()}`,
+  return { id, kind: "pin", group: groupOf(id), name: PIN_NAME[id], title: `${PIN_NAME[id]}: one of the ${g.noun}`,
     text: g.text, note: PIN_NOTES[id] || "" };
 }
 export const PART_LIST = [
-  ["usb", "USB port"], ["d9", "Digital pins"], ["a0", "Analog inputs"], ["v5", "Power pins"],
+  ["usb", "USB port"], ["digital", "Digital pins"], ["analog", "Analog inputs"], ["power", "Power pins"],
   ["chip", "The brain"], ["reset", "Reset button"], ["led_l", "Light L"], ["led_on", "Light ON"],
   ["led_tx", "Lights TX and RX"], ["jack", "Power jack"], ["usbchip", "USB chip"],
-  ["crystal", "Clock crystal"], ["icsp", "ICSP pins"], ["supply", "Power parts"],
+  ["crystal", "Clock crystal"], ["icsp", "Service pins"], ["supply", "Power parts"],
 ];
 
 // ------------------------------------------------------------------ drawing the labels
@@ -232,7 +243,7 @@ export function createBoard(container, { onSelect, onHover } = {}) {
   const byId = {};                                 // id -> meshes
 
   const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0.05, ...o });
-  const metal = (color = 0xeceef1) => mat(color, { roughness: 0.3, metalness: 0.55, envMapIntensity: 1.3 });
+  const metal = (color = 0xd9dce1) => mat(color, { roughness: 0.42, metalness: 0.6, envMapIntensity: 0.85 });
 
   function register(mesh, id) {
     mesh.userData.id = id;
@@ -291,10 +302,34 @@ export function createBoard(container, { onSelect, onHover } = {}) {
   socket(BOTTOM_PINS.slice(8), Z_BOTTOM, 1);
 
   // big parts
-  box(15.6, 10.9, 12.2, 1.5, T, 15.5, metal(), "usb");
-  box(7.5, 5.2, 0.4, -6.25, T + 2.8, 15.5, mat(0x1a1c20));                       // the opening of the USB socket
-  box(14.0, 10.8, 9.0, 4.6, T, 45.7, mat(0x101113, { roughness: 0.4 }), "jack");
-  cyl(3.1, 0.4, -2.2, T + 2.4, 45.7, mat(0x2a2d31)).rotation.z = Math.PI / 2;
+  // USB socket (type B): a metal shell that is open at the front, with the plastic tongue inside
+  {
+    const x0 = -6.3, len = 15.6, zc = 15.5, wide = 12.2, high = 10.9, wall = 1.7, deep = 8.2;
+    box(len, wall, wide, x0 + len / 2, T + high - wall, zc, metal(), "usb");                    // top
+    box(len, wall, wide, x0 + len / 2, T, zc, metal(), "usb");                                  // bottom
+    for (const dz of [-1, 1]) box(len, high, wall, x0 + len / 2, T, zc + dz * (wide - wall) / 2, metal(), "usb");
+    box(len - deep, high, wide, x0 + deep + (len - deep) / 2, T, zc, metal(), "usb");           // the closed back
+    box(0.3, high - 2 * wall, wide - 2 * wall, x0 + deep - 0.1, T + wall, zc, mat(0x0b0c0e, { roughness: 0.9 }), "usb");
+    box(deep - 1.4, 3.0, 5.6, x0 + 1.2 + (deep - 1.4) / 2, T + high / 2 - 1.5, zc, mat(0xe9e5d8, { roughness: 0.7 }), "usb");
+    for (const dz of [-1.9, -0.65, 0.65, 1.9]) {                                                // four contacts
+      box(deep - 2.6, 0.12, 0.7, x0 + 2.0 + (deep - 2.6) / 2, T + high / 2 + 1.5, zc + dz, metal(0xd9b86a));
+    }
+  }
+  // power jack: a black block with a round opening and a centre pin
+  {
+    const x0 = -2.4, len = 14.0, zc = 45.7, wide = 9.0, high = 10.8, yc = T + 6.4;
+    box(len, high, wide, x0 + len / 2, T, zc, mat(0x131416, { roughness: 0.55 }), "jack");
+    const flat = (geo, material, dx) => {
+      const m = new THREE.Mesh(geo, material);
+      m.rotation.y = -Math.PI / 2;                 // face the front of the board (-x)
+      m.position.set(x0 - dx, yc, zc);
+      board.add(m);
+      return register(m, "jack");
+    };
+    flat(new THREE.RingGeometry(3.15, 3.95, 48), new THREE.MeshBasicMaterial({ color: 0x3a3d42 }), 0.03);   // rim
+    flat(new THREE.CircleGeometry(3.15, 48), new THREE.MeshBasicMaterial({ color: 0x020203 }), 0.02);        // the hole
+    flat(new THREE.CircleGeometry(1.0, 32), new THREE.MeshBasicMaterial({ color: 0xb9bcc2 }), 0.04);         // centre pin
+  }
   box(6.2, 3.3, 6.2, 6.2, T, 3.5, metal(), "reset");
   cyl(1.75, 1.3, 6.2, T + 3.3, 3.5, mat(0xd8392b, { roughness: 0.5 }), "reset");
   // the brain: a socket with the long chip on top, legs along both sides
@@ -397,24 +432,85 @@ export function createBoard(container, { onSelect, onHover } = {}) {
     const hit = ray.intersectObjects(targets, false)[0];
     return hit ? hit.object.userData.id : null;
   }
-  let hovered = null, selected = null;
+  let hovered = null, selectedIds = [];
+  // What marks the selection: a green box around each selected part and a pointer above it,
+  // so that even a 2 mm light is easy to find.
+  const marks = new THREE.Group();
+  scene.add(marks);
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0x4fd36b, transparent: true, opacity: 0.24, depthWrite: false });
+  const edgeMat = new THREE.LineBasicMaterial({ color: 0x9dffb0 });
+  const coneMat = new THREE.MeshBasicMaterial({ color: 0x2fd058 });
+  let bob = 0;
+
+  /** One box per selected part; parts that touch each other share a box. */
+  function clusters(ids) {
+    const boxes = [];
+    for (const id of ids) for (const m of byId[id] || []) boxes.push(new THREE.Box3().setFromObject(m));
+    for (let again = true; again;) {
+      again = false;
+      search: for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+        if (boxes[i].clone().expandByScalar(1.7).intersectsBox(boxes[j])) {
+          boxes[i].union(boxes[j]);
+          boxes.splice(j, 1);
+          again = true;
+          break search;
+        }
+      }
+    }
+    return boxes;
+  }
+
+  function mark() {
+    clearInterval(bob);
+    for (const o of [...marks.children]) { marks.remove(o); o.geometry.dispose(); }
+    const cones = [];
+    for (const b of clusters(selectedIds)) {
+      const size = b.getSize(new THREE.Vector3()), mid = b.getCenter(new THREE.Vector3());
+      const geo = new THREE.BoxGeometry(Math.max(size.x + 1.2, 2.8), size.y + 0.8, Math.max(size.z + 1.2, 2.8));
+      const halo = new THREE.Mesh(geo, haloMat);
+      halo.position.set(mid.x, mid.y + 0.3, mid.z);
+      const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat);
+      edges.position.copy(halo.position);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(1.8, 4.6, 24), coneMat);
+      cone.rotation.x = Math.PI;                  // tip down
+      cone.userData.rest = b.max.y + 4.6;
+      cone.position.set(mid.x, cone.userData.rest, mid.z);
+      marks.add(halo, edges, cone);
+      cones.push(cone);
+    }
+    if (cones.length) {
+      const t0 = performance.now();
+      bob = setInterval(() => {                   // the pointers bob gently
+        if (document.hidden) return;
+        const dy = Math.sin((performance.now() - t0) / 260) * 0.9;
+        for (const c of cones) c.position.y = c.userData.rest + dy;
+        renderNow();
+      }, 40);
+    }
+  }
+
   function paint() {
+    // one pin selected: the other pins of its group glow faintly, to show what belongs together
+    const one = selectedIds.length === 1 ? selectedIds[0] : null;
+    const mates = one && (byId[one] || [])[0]?.userData.pin ? GROUP_PINS[groupOf(one)] : [];
     for (const [id, meshes] of Object.entries(byId)) {
-      const on = id === selected, near = id === hovered;
+      const on = selectedIds.includes(id), near = id === hovered;
       for (const m of meshes) {
-        if (m.userData.pin) m.material.opacity = on ? 0.62 : near ? 0.38 : 0;
+        if (m.userData.pin) m.material.opacity = on ? 0.66 : near ? 0.4 : mates.includes(id) ? 0.17 : 0;
         else if (m.material.emissive) {
           if (m.userData.base === undefined) m.userData.base = [m.material.emissive.getHex(), m.material.emissiveIntensity];
-          m.material.emissive.setHex(on || near ? 0x3fae55 : m.userData.base[0]);
-          m.material.emissiveIntensity = on ? 0.75 : near ? 0.45 : m.userData.base[1];
+          m.material.emissive.setHex(on || near ? 0x44d060 : m.userData.base[0]);
+          m.material.emissiveIntensity = on ? 0.9 : near ? 0.5 : m.userData.base[1];
         }
       }
     }
     requestRender();
   }
+  /** Select a part, a pin, or a whole group of pins ("digital", "analog", "power", "special"). */
   function select(id, silent = false) {
-    selected = id;
+    selectedIds = !id ? [] : GROUP_PINS[id] ? GROUP_PINS[id] : [id];
     paint();
+    mark();
     if (!silent && onSelect) onSelect(id);
   }
 
@@ -482,5 +578,7 @@ export function createBoard(container, { onSelect, onHover } = {}) {
       return { x: b.left + ((v.x + 1) / 2) * b.width, y: b.top + ((1 - v.y) / 2) * b.height };
     },
     pickAt(x, y) { return pick({ clientX: x, clientY: y }); },
+    /** Put the camera anywhere (tests and screenshots). */
+    lookFrom(az, pol, r) { clearInterval(anim); Object.assign(cam, { az, pol, r }); renderNow(); },
   };
 }
