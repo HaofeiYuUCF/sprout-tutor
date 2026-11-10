@@ -48,6 +48,11 @@ class ProgressStore:
             c.status, c.first_opened = "in_progress", _now()
         self.save(prog)
 
+    def grow_interest(self, learner_id: str, answer: str) -> None:
+        prog = self.load(learner_id)
+        prog.grow_interest, prog.grow_interest_at = answer, _now()
+        self.save(prog)
+
     def sim_passed(self, learner_id: str, card_id: str) -> None:
         prog = self.load(learner_id)
         c = self._card(prog, card_id)

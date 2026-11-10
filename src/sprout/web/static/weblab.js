@@ -183,8 +183,11 @@
     });
     $("card-tiles").replaceChildren(...tiles);
     let progress = {};
+    $("grow-panel").hidden = true;
     try {
-      progress = (await postJson("/api/weblab/progress", { learner: state.learner })).cards;
+      const summary = await postJson("/api/weblab/progress", { learner: state.learner });
+      progress = summary.cards;
+      renderGrowPanel(summary.grow);
     } catch (_) { /* tiles still work without badges */ }
     for (const [id, badge] of Object.entries(badges)) {
       const p = progress[id] || {};
@@ -203,6 +206,45 @@
         return b;
       }));
     }
+  }
+
+  // ---- after the last Seed card: interest in a Grow team (stored with the sign-in code only)
+  function renderGrowPanel(grow) {
+    const panel = $("grow-panel");
+    panel.hidden = !grow || !grow.eligible;
+    if (panel.hidden) return;
+    const answer = async (value) => {
+      try {
+        await postJson("/api/weblab/grow_interest", { learner: state.learner, answer: value });
+        renderGrowPanel({ ...grow, answer: value });
+      } catch (_) {
+        panel.append(el("p", "muted", "Your answer was not saved. Check your connection and try again."));
+      }
+    };
+    const button = (label, value, cls) => {
+      const b = el("button", cls, label);
+      b.addEventListener("click", () => answer(value));
+      return b;
+    };
+    const text = el("div");
+    const actions = el("div", "actions");
+    text.append(el("h2", "", "You finished every Seed project 🎉"));
+    if (!grow.answer) {
+      text.append(el("p", "muted", "The next stage is Grow: a small team builds and tests a sensing system for a real greenhouse or garden over one semester. Grow teams are being planned and have not started yet. Do you want to hear when they start?"));
+      actions.append(button("Yes, I am interested", "yes", "primary"), button("No, thanks", "no", ""));
+    } else if (grow.answer === "yes") {
+      text.append(el("p", "muted", `Thank you. Your interest in a Grow team is saved with your sign-in code, ${state.learner}. We do not store your name or e-mail.`));
+      text.append(el("p", "muted", !grow.guest
+        ? "Your instructor can match this code to you, so keep using the same code."
+        : state.config.grow_contact
+          ? `This is a guest code, so we cannot reach you. To hear when Grow starts, write to ${state.config.grow_contact} and mention your code.`
+          : "This is a guest code, so we cannot reach you. Tell your instructor that you are interested, and give them this code."));
+      actions.append(button("Change my answer", "no", "small"));
+    } else {
+      text.append(el("p", "muted", "No problem. You can change your answer here at any time."));
+      actions.append(button("I am interested after all", "yes", "small"));
+    }
+    panel.replaceChildren(text, actions);
   }
 
   // ---- one card

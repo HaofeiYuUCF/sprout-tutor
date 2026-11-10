@@ -362,3 +362,9 @@ details.more p { margin: 6px 0 0; font-size: 13.5px; color: var(--fg); }
 .photo-stage { display: flex; flex-direction: column; gap: 8px; }
 .photo-stage video, .photo-stage img { width: 100%; max-width: 520px; border-radius: 8px; background: #000; display: block; }
 .photo-ask { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+
+/* ---------- after the last Seed card: interest in Grow ---------- */
+.grow { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; border-color: var(--ok); }
+.grow > div:first-child { flex: 1 1 380px; }
+.grow h2 { margin: 0 0 4px; }
+.grow p { margin: 0 0 4px; }

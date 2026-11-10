@@ -123,7 +123,10 @@ def register(app: FastAPI, root: Path | None = None) -> None:
             t.llm = CappedLLM(t.llm, ai_cap, learner)   # curated hints never reach the LLM
         return t
 
-    tutor = WebTutor(cards, make_tutor, d, allowed=roster.allowed)
+    tutor = WebTutor(cards, make_tutor, d, allowed=roster.allowed,
+                     is_guest=lambda code: code in roster.guests)
+    # Shown to guests who are interested in Grow (an address or a link); empty = not shown.
+    grow_contact = os.environ.get("SPROUT_GROW_CONTACT", "").strip()[:200]
     compile_limit = RateLimiter(env_int("SPROUT_COMPILE_PER_MIN", 20), 60)
     hint_limit = RateLimiter(env_int("SPROUT_HINT_PER_MIN", 10), 60)
     api_limit = RateLimiter(env_int("SPROUT_API_PER_MIN", 300), 60)
@@ -210,6 +213,7 @@ def register(app: FastAPI, root: Path | None = None) -> None:
             "guest_allowed": roster.guests_enabled,
             "compiler_ready": service.available(),
             "photo_check": photo_check,
+            "grow_contact": grow_contact,
             "photo_kept": photo_check and photo_keep,
             "known_boards": [{"usbVendorId": v, "usbProductId": p, "name": n}
                              for (v, p), n in KNOWN.items()],
@@ -317,6 +321,10 @@ def register(app: FastAPI, root: Path | None = None) -> None:
     @app.post("/api/weblab/progress")
     async def weblab_progress(request: Request):
         return await tutor_call(request, lambda b: tutor.progress_summary(b.get("learner")))
+
+    @app.post("/api/weblab/grow_interest")
+    async def weblab_grow_interest(request: Request):
+        return await tutor_call(request, lambda b: tutor.grow_interest(b.get("learner"), b.get("answer")))
 
     @app.post("/api/weblab/discard")
     async def weblab_discard(request: Request):

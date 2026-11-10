@@ -158,3 +158,30 @@ def test_learning_events_are_logged(web):
     assert any(e["event_type"] == "explain_open" and e.get("card_id") is None for e in log)
     with pytest.raises(BadRequest):
         web.record_learning("l_web10", "c01_light_led", "quiz", "../bad id")
+
+
+def test_grow_question_appears_only_after_every_seed_card(web, cards):
+    web.open_card("l_grow1", "c01_light_led")
+    assert web.progress_summary("l_grow1")["grow"] == {"eligible": False, "answer": None, "guest": False}
+    for cid in cards:
+        web.tutors["l_grow1"].progress.sim_passed("l_grow1", cid)
+    assert web.progress_summary("l_grow1")["grow"]["eligible"] is True
+
+
+def test_grow_answer_is_stored_with_the_code_and_can_change(web, cards, tmp_path):
+    web.open_card("l_grow2", "c01_light_led")
+    for cid in cards:
+        web.tutors["l_grow2"].progress.sim_passed("l_grow2", cid)
+    assert web.grow_interest("l_grow2", "yes") == {"ok": True, "answer": "yes"}
+    assert web.progress_summary("l_grow2")["grow"]["answer"] == "yes"
+    web.grow_interest("l_grow2", "no")
+    assert web.progress_summary("l_grow2")["grow"]["answer"] == "no"
+    with pytest.raises(BadRequest):
+        web.grow_interest("l_grow2", "my e-mail is someone@example.org")
+
+
+def test_guest_codes_are_marked_because_they_cannot_be_reached(cards, make_tutor, tmp_path):
+    w = WebTutor(cards, lambda learner: make_tutor(learner=learner), tmp_path / "data",
+                 is_guest=lambda code: code.startswith("l_g"))
+    assert w.progress_summary("l_gabc234")["grow"]["guest"] is True
+    assert w.progress_summary("l_class1")["grow"]["guest"] is False

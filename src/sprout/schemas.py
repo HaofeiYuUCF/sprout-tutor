@@ -218,6 +218,7 @@ class Event(Strict):
         "session_start", "card_open", "code_edit", "compile", "upload", "serial_snapshot",
         "check_result", "hint_request", "hint_shown", "answered_question", "photo_check",
         "board_status", "card_leave", "sim_run", "work_discard", "quiz_answer", "explain_open",
+        "grow_interest",
     ]
     card_id: str | None = None
     card_version: int | None = None
@@ -262,4 +263,6 @@ class LearnerProgress(Strict):
     schema_version: int = 1
     learner_id: str
     updated: str = Field(default_factory=_now)
+    grow_interest: Literal["yes", "no"] | None = None   # asked once every Seed card is done
+    grow_interest_at: str | None = None
     cards: dict[str, CardProgress] = {}

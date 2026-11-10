@@ -73,10 +73,12 @@ class WebTutor:
     """Per-learner tutors and compile results. Thread-safe: routes run in a thread pool."""
 
     def __init__(self, cards: dict[str, CardBundle], make_tutor: Callable[[str], Tutor],
-                 data_dir: Path | None = None, allowed: Callable[[str], bool] | None = None):
+                 data_dir: Path | None = None, allowed: Callable[[str], bool] | None = None,
+                 is_guest: Callable[[str], bool] | None = None):
         self.cards = cards
         self.make_tutor = make_tutor
         self.allowed = allowed            # class list check on a public server
+        self.is_guest = is_guest          # guest codes cannot be matched to a person
         self.data_dir = data_dir  # saved work: data/work/<learner>/<card>/
         self._learners: dict[str, _Learner] = {}
         self._lock = threading.Lock()
@@ -172,7 +174,24 @@ class WebTutor:
             c = prog.cards.get(cid)
             out[cid] = {"status": c.status if c else "not_started",
                         "sim_passed": bool(c and c.sim_passed)}
-        return {"cards": out}
+        # Every Seed card works (in the simulator or on the board): the student may be asked
+        # whether they want to hear about Grow teams.
+        seed_done = bool(out) and all(v["sim_passed"] or v["status"] == "completed" for v in out.values())
+        return {"cards": out,
+                "grow": {"eligible": seed_done, "answer": prog.grow_interest,
+                         "guest": bool(self.is_guest and self.is_guest(lr.tutor.logger.learner_id))}}
+
+    def grow_interest(self, learner_id: object, answer: object) -> dict:
+        """Store "yes" or "no" with the sign-in code. No name or e-mail is ever asked for."""
+        lr = self._learner(learner_id)
+        if answer not in ("yes", "no"):
+            raise BadRequest("answer must be yes or no")
+        summary = self.progress_summary(learner_id)
+        lr.tutor.progress.grow_interest(lr.tutor.logger.learner_id, answer)
+        lr.tutor.logger.log("grow_interest", detail={
+            "client": "weblab", "answer": answer, "seed_done": summary["grow"]["eligible"],
+            "guest": summary["grow"]["guest"]})
+        return {"ok": True, "answer": answer}
 
     def record_learning(self, learner_id: object, card_id: object, kind: object, item: object,
                         correct: object = None) -> None:
