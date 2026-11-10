@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get to know your board · SPROUT Web Lab</title>
+<link rel="stylesheet" href="/weblab/static/weblab.css">
+<style>
+  .tour { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); align-items: start; }
+  @media (max-width: 980px) { .tour { grid-template-columns: minmax(0, 1fr); } }
+  .stage3d { position: relative; height: min(68vh, 620px); min-height: 380px; border-radius: 10px;
+    border: 1px solid var(--line); overflow: hidden;
+    background: radial-gradient(ellipse at 50% 35%, #f3f4ee 0%, #dfe3d8 100%); }
+  @media (prefers-color-scheme: dark) { .stage3d { background: radial-gradient(ellipse at 50% 35%, #3a4238 0%, #222820 100%); } }
+  .stage3d .views { position: absolute; left: 10px; top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .stage3d .views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .stage3d .how { position: absolute; left: 12px; bottom: 10px; font-size: 13px; color: var(--muted);
+    background: color-mix(in srgb, var(--panel) 82%, transparent); padding: 3px 8px; border-radius: 6px; }
+  .tip { position: fixed; z-index: 5; pointer-events: none; font-size: 13px; font-weight: 600; padding: 4px 8px;
+    border-radius: 6px; background: var(--fg); color: var(--bg); transform: translate(12px, 14px); }
+  .side { display: flex; flex-direction: column; gap: 14px; }
+  .info h2 { margin: 0 0 6px; font-size: 18px; }
+  .info p { margin: 0 0 6px; }
+  .info .note { color: var(--accent); font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); }
+  .ideas { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+  .ideas b { display: block; }
+  .quiz-box .prompt { font-size: 17px; font-weight: 600; margin: 6px 0; }
+  .quiz-box .ok { color: var(--ok); font-weight: 600; }
+  .quiz-box .no { color: var(--warn-fg); background: var(--warn-bg); padding: 4px 8px; border-radius: 6px; }
+  .quiz-box progress { width: 100%; height: 8px; }
+  .nowebgl { padding: 24px; }
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="brand">SPROUT <span>Web Lab</span></div>
+  <span class="spacer"></span>
+  <a id="back" class="link" href="/weblab">← Back to the cards</a>
+</header>
+
+<main class="screen">
+  <div>
+    <h1>Get to know your board</h1>
+    <p class="muted">This is the Arduino UNO, the small computer you will program. Click a part to see what it does. It takes about three minutes, and you do not need a kit.</p>
+  </div>
+
+  <div class="tour">
+    <section class="stage3d" id="stage" aria-label="3D model of the Arduino UNO board">
+      <div class="views" role="group" aria-label="Views">
+        <button class="small" data-view="desk" aria-pressed="true" title="The board as you see it on your desk">Desk view</button>
+        <button class="small" data-view="top" aria-pressed="false" title="From straight above, the same way round as in the simulator">Top view (as in the simulator)</button>
+        <button class="small" data-view="digital" aria-pressed="false" title="The side with pins 0 to 13">Digital pins side</button>
+        <button class="small" data-view="power" aria-pressed="false" title="The side with 5V, GND and A0 to A5">Power and analog side</button>
+      </div>
+      <div class="how">Drag to turn the board. Scroll to zoom. Click a part.</div>
+    </section>
+
+    <div class="side">
+      <section class="panel info" aria-live="polite">
+        <h2 id="info-title">Click a part of the board</h2>
+        <p id="info-text">Start with the big silver box on the left: that is where the cable goes in.</p>
+        <p id="info-note" class="note" hidden></p>
+      </section>
+
+      <section class="panel">
+        <span class="label">Parts of the board</span>
+        <div id="part-list" class="chips"></div>
+      </section>
+
+      <section class="panel quiz-box">
+        <span class="label">Check yourself (not graded)</span>
+        <div id="quiz">
+          <p class="muted tight">Can you find five things on the board?</p>
+          <div class="actions"><button id="quiz-start" class="primary">Start</button></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <span class="label">Four ideas to keep</span>
+        <ul class="ideas">
+          <li><b>Digital means on or off.</b> A digital pin is at 5 volts or at 0 volts, nothing in between.</li>
+          <li><b>Analog means a range.</b> An analog input reads how high a voltage is, as a number from 0 to 1023.</li>
+          <li><b>A circuit is a loop.</b> Electricity leaves from 5V or from a pin, goes through your parts, and must return to GND.</li>
+          <li><b>Your code travels through the USB cable.</b> The same cable powers the board and brings its messages back.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</main>
+<div id="tip" class="tip" hidden></div>
+
+<script type="module">
+import { createBoard, describe, PART_LIST } from "/weblab/static/board3d.js";
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
+let learner = null;
+try { learner = localStorage.getItem("sprout.learner"); } catch (_) { /* blocked */ }
+
+/** Log what the student opened or answered (best effort; same record as the cards). */
+function learn(kind, item, correct) {
+  if (!learner) return;
+  fetch("/api/weblab/learn", { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ learner, card_id: null, kind, item, ...(kind === "quiz" ? { correct } : {}) }) }).catch(() => {});
+}
+
+const TASKS = [
+  { id: "find_usb", prompt: "Click the place where the cable to your computer goes in.", ok: (id) => id === "usb" },
+  { id: "find_d9", prompt: "Click pin 9.", ok: (id) => id === "d9" },
+  { id: "find_gnd", prompt: "Click a GND pin.", ok: (id) => /^gnd\d$/.test(id) },
+  { id: "find_a0", prompt: "Click pin A0.", ok: (id) => id === "a0" },
+  { id: "find_l", prompt: "Click the small light marked L.", ok: (id) => id === "led_l" },
+];
+const quiz = { on: false, at: 0, tries: 0, right: 0 };
+
+function showInfo(id) {
+  const d = describe(id);
+  $("info-title").textContent = d.title;
+  $("info-text").textContent = d.text;
+  $("info-note").textContent = d.note;
+  $("info-note").hidden = !d.note;
+  for (const b of $("part-list").children) {
+    const same = b.dataset.part === id || (d.kind === "pin" && describe(b.dataset.part).group === d.group);
+    b.setAttribute("aria-pressed", same ? "true" : "false");
+  }
+}
+
+function renderQuiz(feedback) {
+  const box = $("quiz");
+  if (quiz.at >= TASKS.length) {
+    quiz.on = false;
+    box.replaceChildren(
+      el("p", "ok", `Well done: you found all ${TASKS.length}.`),
+      el("p", "muted tight", quiz.right === TASKS.length ? "Every one on the first try." : `${quiz.right} of ${TASKS.length} on the first try.`),
+    );
+    const go = el("a", "", "Go to the cards →");
+    go.href = "/weblab";
+    go.className = "link";
+    box.append(go);
+    return;
+  }
+  const bar = el("progress");
+  bar.max = TASKS.length; bar.value = quiz.at;
+  bar.setAttribute("aria-label", `Task ${quiz.at + 1} of ${TASKS.length}`);
+  const rows = [bar, el("p", "prompt", TASKS[quiz.at].prompt), el("p", "muted tight", "Click it on the board. You can turn the board first.")];
+  if (feedback) rows.push(el("p", feedback[0], feedback[1]));
+  box.replaceChildren(...rows);
+}
+
+function onSelect(id) {
+  showInfo(id);
+  if (!quiz.on) { learn("explain", `board.${id}`); return; }
+  const task = TASKS[quiz.at];
+  quiz.tries += 1;
+  if (task.ok(id)) {
+    learn("quiz", `board.${task.id}`, quiz.tries === 1);
+    if (quiz.tries === 1) quiz.right += 1;
+    quiz.at += 1; quiz.tries = 0;
+    renderQuiz(["ok", "✓ Yes."]);
+  } else {
+    if (quiz.tries === 1) learn("quiz", `board.${task.id}`, false);
+    renderQuiz(["no", `You clicked: ${describe(id).name}. Try again.`]);
+  }
+}
+
+let board = null;
+try {
+  board = createBoard($("stage"), {
+    onSelect,
+    onHover(id, ev) {
+      const tip = $("tip");
+      tip.hidden = !id;
+      if (id) { tip.textContent = describe(id).name; tip.style.left = `${ev.clientX}px`; tip.style.top = `${ev.clientY}px`; }
+    },
+  });
+} catch (e) {
+  $("stage").append(el("p", "nowebgl muted", "This browser cannot show the 3D board. Use the list on the right to read about each part."));
+}
+window.SproutBoard = board;      // for tests
+
+$("part-list").replaceChildren(...PART_LIST.map(([id, label]) => {
+  const b = el("button", "small", label);
+  b.dataset.part = id;
+  b.setAttribute("aria-pressed", "false");
+  b.addEventListener("click", () => {
+    if (board) board.select(id, true);
+    showInfo(id);
+    if (!quiz.on) learn("explain", `board.${id}`);
+  });
+  return b;
+}));
+
+for (const b of document.querySelectorAll(".views button")) {
+  b.addEventListener("click", () => {
+    if (board) board.setView(b.dataset.view);
+    for (const o of document.querySelectorAll(".views button")) o.setAttribute("aria-pressed", o === b ? "true" : "false");
+  });
+}
+
+$("quiz-start").addEventListener("click", () => {
+  Object.assign(quiz, { on: true, at: 0, tries: 0, right: 0 });
+  if (board) board.select(null, true);
+  renderQuiz();
+});
+</script>
+</body>
+</html>

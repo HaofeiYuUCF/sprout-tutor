@@ -1095,6 +1095,7 @@
     $("btn-disconnect").addEventListener("click", disconnect);
     $("btn-clear").addEventListener("click", () => { $("monitor").textContent = ""; plots.board?.reset(); });
     $("btn-check").addEventListener("click", checkWork);
+    $("btn-board").addEventListener("click", async () => { await flushSave(); location.href = "/weblab/board"; });
     $("photo-camera").addEventListener("click", startCamera);
     $("photo-cancel").addEventListener("click", stopCamera);
     $("photo-pick").addEventListener("click", () => $("photo-file").click());
