@@ -1,7 +1,7 @@
 schema_version: 2
 id: c05_greenhouse_controller
 title: Greenhouse controller (final test)
-version: 2
+version: 3
 stage: seed
 learning_objectives:
   - Combine one sensor and two outputs into a single control program.
@@ -54,6 +54,8 @@ steps:
     text: >-
       Send your code to the board. At room temperature both should be off. Warm the thermistor
       with your fingers: first the fan should start, then, if it gets warmer still, the alarm.
+      If your fingers cannot warm it that far, set FAN_ON_C and ALARM_C a little above the room
+      reading for the test, then put them back.
   - id: reflect
     kind: reflect
     text: >-

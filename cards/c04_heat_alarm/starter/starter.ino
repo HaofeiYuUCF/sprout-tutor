@@ -18,6 +18,13 @@ void loop() {
   float r = R_FIXED * (1023.0 / raw - 1.0);
   float tempC = 1.0 / (1.0 / 298.15 + log(r / R0) / BETA) - 273.15;
   // TODO: if tempC is above ALARM_C, turn the buzzer on; otherwise turn it off
-  // TODO: print a line like: temp_c=24.8 alarm=OFF
+  //       The pattern for a choice looks like this (an example with other names, not the answer):
+  //         if (moisture < DRY_LIMIT) {
+  //           digitalWrite(PUMP_PIN, HIGH);
+  //         } else {
+  //           digitalWrite(PUMP_PIN, LOW);
+  //         }
+  // TODO: print tempC and the alarm state, so that a line looks like: temp_c=24.8 alarm=OFF
+  //       (the temperature must come from tempC: do not type the number inside the quotes)
   delay(500);
 }

@@ -8,3 +8,6 @@ checks:
     min: 10
     max: 45
     n_samples: 5
+  - id: reading_from_sensor
+    type: code_not_regex
+    regex: '"[^"\n]*(temp_c|raw)\s*=\s*-?\d'

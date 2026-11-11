@@ -1,7 +1,7 @@
 schema_version: 2
 id: c04_heat_alarm
 title: Greenhouse heat alarm
-version: 4
+version: 5
 stage: seed
 learning_objectives:
   - Compare a reading with a threshold using if and else.
@@ -46,6 +46,8 @@ steps:
     text: >-
       Send your code to the board. At room temperature the alarm should be OFF. Pinch the
       thermistor until it passes 28 °C, listen for the buzzer, and watch the messages switch to ON.
+      If your fingers cannot warm it that far, set ALARM_C a little above the room reading for the
+      test, then put it back.
   - id: reflect
     kind: reflect
     text: >-

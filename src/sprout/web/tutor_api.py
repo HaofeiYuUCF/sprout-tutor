@@ -154,7 +154,7 @@ class WebTutor:
         if source == "board":
             results = lr.tutor.checks(ctx)
         else:
-            results = run_checks(card.checks, ctx.compile_result, ctx.serial_lines)
+            results = run_checks(card.checks, ctx.compile_result, ctx.serial_lines, ctx.code)
             lr.tutor.logger.log("check_result", card_id=card.id, card_version=card.card.version,
                                 code_hash=ctx.code_hash,
                                 detail={"source": "sim",

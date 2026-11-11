@@ -1,7 +1,7 @@
 schema_version: 2
 id: c01_light_led
 title: Light an LED
-version: 1
+version: 2
 stage: seed
 learning_objectives:
   - Explain that current only flows around a closed loop, from 5V through the parts back to GND.
@@ -27,13 +27,16 @@ tinkercad:
 steps:
   - id: simulate
     kind: simulate
-    text: >-
-      Part A, no code: wire 5V to the 220 Ω resistor, the resistor to the LED's long leg, and the
-      LED's short leg to GND. The LED lights. Now try three things and read the wiring tips each
-      time: turn the LED around, take the resistor out, pull one wire.
-
-      Part B: put everything back the way it was. Then move the wire from 5V to pin 9 and press
-      "Test my wiring". The LED should blink.
+    text: |-
+      Part A: light the LED with no code.
+      1. Drag the 220 Ω resistor and the LED onto the breadboard.
+      2. Add a wire from 5V to one end of the resistor.
+      3. Connect the other end of the resistor to the LED's long leg (+).
+      4. Add a wire from the LED's short leg to GND. The LED lights.
+      5. Try three changes, one at a time, and read the wiring tips after each: turn the LED around, take the resistor out, remove one wire. Undo each change before the next.
+      Part B: let a pin switch the LED.
+      6. Move the wire from 5V to pin 9.
+      7. Press "Test my wiring". The LED should blink.
   - id: build
     kind: build
     text: >-

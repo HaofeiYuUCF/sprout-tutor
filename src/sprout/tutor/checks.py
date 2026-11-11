@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from ..hardware.board import CompileResult
 from ..schemas import CheckList
-from .context import parse_field
+from .context import parse_field, strip_comments
 
 
 @dataclass
@@ -18,7 +18,7 @@ class CheckResult:
 
 
 def run_checks(checks: CheckList, compile_result: CompileResult | None,
-               serial_lines: list[str]) -> list[CheckResult]:
+               serial_lines: list[str], code: str = "") -> list[CheckResult]:
     out = []
     for c in checks.checks:
         if c.type == "compile_ok":
@@ -34,4 +34,10 @@ def run_checks(checks: CheckList, compile_result: CompileResult | None,
             shown = ", ".join(f"{v:g}" for v in values) or "no values"
             out.append(CheckResult(c.id, ok,
                                    f"last {len(values)} {c.field}: {shown} (expect {c.min:g}–{c.max:g})"))
+        elif c.type == "code_not_regex":
+            # The code (comments removed) must not contain the pattern, for example a reading typed
+            # in as text instead of printed from a variable.
+            found = bool(re.search(c.regex or "", strip_comments(code)))
+            out.append(CheckResult(c.id, not found,
+                                   "typed in the code" if found else "not typed in the code"))
     return out

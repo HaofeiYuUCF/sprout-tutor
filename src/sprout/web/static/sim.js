@@ -757,13 +757,14 @@ function init() {
   };
   let drag = null;
   let rubber = null;
+  let lastTap = { kind: null, t: 0 };
 
   svg.addEventListener("pointerdown", (ev) => {
     const partEl = ev.target.closest("[data-part]");
     if (partEl) {
       const p = parts[partEl.dataset.part];
       const q = pt(ev);
-      drag = { p, dx: q.x - p.x, dy: q.y - p.y, moved: false };
+      drag = { p, dx: q.x - p.x, dy: q.y - p.y, moved: false, sx: ev.clientX, sy: ev.clientY };
       svg.setPointerCapture(ev.pointerId);
       return;
     }
@@ -800,6 +801,8 @@ function init() {
 
   svg.addEventListener("pointermove", (ev) => {
     if (drag) {
+      // A click with a slightly shaky hand is still a click: the part only comes loose after a real move.
+      if (!drag.moved && Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) < 4) return;
       const q = pt(ev);
       drag.p.x = Math.round(q.x - drag.dx);
       drag.p.y = Math.round(q.y - drag.dy);
@@ -815,21 +818,20 @@ function init() {
   svg.addEventListener("pointerup", () => {
     if (!drag) return;
     const moved = drag.moved;
-    if (moved) snap(drag.p);
+    const p = drag.p;
+    if (moved) snap(p);
     drag = null;
+    // Two clicks on the same part without moving it = turn it around. The browser's own dblclick
+    // event is not used: the pointer is captured by the drawing and the part is redrawn after every
+    // click, so in Chrome and Edge that event never reaches the part.
+    const now = performance.now();
+    const second = !moved && lastTap.kind === p.kind && now - lastTap.t < 500;
+    lastTap = moved || second ? { kind: null, t: 0 } : { kind: p.kind, t: now };
+    const flip = second && FLIPPABLE.has(p.kind);
+    if (flip) p.flipped = !p.flipped;
     drawParts();
     refresh(true);
-    if (moved) notifyChange();
-  });
-
-  svg.addEventListener("dblclick", (ev) => {
-    const partEl = ev.target.closest("[data-part]");
-    if (!partEl || !FLIPPABLE.has(partEl.dataset.part)) return;
-    const p = parts[partEl.dataset.part];
-    p.flipped = !p.flipped;
-    drawParts();
-    refresh(true);
-    notifyChange();
+    if (moved || flip) notifyChange();
   });
 
   function drawRubber(ev) {

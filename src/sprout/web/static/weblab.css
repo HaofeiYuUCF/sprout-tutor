@@ -344,6 +344,7 @@ details.more p { margin: 6px 0 0; font-size: 13.5px; color: var(--fg); }
 .tight { margin: 0; font-size: 13.5px; }
 .step-head .para { display: block; }
 .step-head .para + .para { margin-top: 6px; }
+.step-head .para.not-finished { font-weight: 600; }
 .step-tips { font-size: 14.5px; color: var(--fg); }
 .cmd-list { margin: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; }
 .cmd-list dt code { font-size: 13px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }

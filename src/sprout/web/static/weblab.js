@@ -25,7 +25,7 @@
       tips: ["Drag a part onto the breadboard. It snaps into the holes.",
         "Hover over a hole: every hole connected to it lights up green.",
         "To add a wire, click a pin or a hole, then click another one.",
-        "Double-click the LED or the sensor to turn it around."] },
+        "Parts with a + side or a marked side (LED, buzzer, diode, transistor) turn around when you double-click them."] },
     { id: "code", short: "Write the code", title: "Write the code", regions: ["editor", "todo"],
       cardKind: "code", tutorStep: "code",
       tips: ["Every instruction ends with a semicolon ;",
@@ -64,6 +64,7 @@
     steps: STEPS, stepIdx: 0,
     compiled: null, errorLines: new Set(), starterTodos: [], loadedCode: "",
     port: null, transport: null, busy: false, asking: false, trials: [], decoder: new TextDecoder(),
+    progress: {},
     serialLines: [], serialPartial: "", simLines: [], simPartial: "",
     mode: "none", saveTimer: null, pending: {},
   };
@@ -187,6 +188,7 @@
     try {
       const summary = await postJson("/api/weblab/progress", { learner: state.learner });
       progress = summary.cards;
+      state.progress = progress;
       renderGrowPanel(summary.grow);
     } catch (_) { /* tiles still work without badges */ }
     for (const [id, badge] of Object.entries(badges)) {
@@ -407,6 +409,14 @@
       ? `Step ${state.stepIdx + 1} of ${state.steps.length} · ${s.title}` : s.title;
     const paras = (s.text ? s.text(c) : cardStepText(s.cardKind)).split(/\n+/).filter(Boolean);
     $("step-text").replaceChildren(...paras.map((p) => el("span", "para", p)));   // one block per paragraph
+    if (s.id === "reflect" && state.cardId && !state.practice) {
+      const p = state.progress[state.cardId] || {};
+      if (p.status !== "completed") {
+        $("step-text").append(el("span", "para not-finished", p.sim_passed
+          ? "This card works in the simulator, but it is not finished on your real board yet. With a kit: go back to step 6, send your code, and press “Check my work” until every item has a ✓."
+          : "This card is not finished yet. Go back to step 4 (simulator) or step 6 (real board) and press “Check my work” until every item has a ✓."));
+      }
+    }
     $("step-tips").replaceChildren(...s.tips.map((t) => el("li", "", t)));
     $("step-tips").hidden = s.tips.length === 0;
     setMode(s.mode || "none");
@@ -817,13 +827,15 @@
     plausible_room_temperature: "The temperature looks right for a room",
     fan_state_printed: "The messages show fan=ON or fan=OFF",
     alarm_state_printed: "The messages show alarm=ON or alarm=OFF",
+    reading_from_sensor: "The reading comes from the sensor",
   };
   /** One check result as a sentence a beginner can read. */
   function checkRowText(x) {
     const label = CHECK_LABELS[x.id] || x.id.replace(/_/g, " ");
     let detail = x.detail || "";
     let m;
-    if (/^compiles$/.test(detail)) detail = "";
+    if (/^compiles$/.test(detail) || /^not typed in the code$/.test(detail)) detail = "";
+    else if (/^typed in the code$/.test(detail)) detail = "a number is typed inside the quotes. Print your variable instead, for example Serial.print(tempC)";
     else if (/^does not compile yet$/.test(detail)) detail = "not yet. Press “Check my code” in step 3 and fix any red messages";
     else if ((m = /^(\d+) matching lines \(need (\d+)\)$/.exec(detail))) {
       detail = x.passed ? `${m[1]} matching messages` : `${m[1]} matching messages so far, ${m[2]} needed`;
@@ -848,6 +860,10 @@
       const source = state.mode === "sim" ? "sim" : "board";
       state.checkSource = source;
       const rows = r.results.map((x) => el("div", x.passed ? "pass" : "todo", checkRowText(x)));
+      if (r.all_passed && state.cardId) {
+        const p = state.progress[state.cardId] = state.progress[state.cardId] || {};
+        if (r.completes_card) p.status = "completed"; else p.sim_passed = true;
+      }
       if (r.all_passed && r.completes_card) {
         rows.push(el("div", "done", "🎉 Card complete on your real board! Go on to the last step."));
       } else if (r.all_passed) {

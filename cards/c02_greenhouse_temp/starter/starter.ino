@@ -14,6 +14,7 @@ void loop() {
   // TODO: read the sensor: int raw = analogRead(TEMP_PIN);
   // TODO: resistance: float r = R_FIXED * (1023.0 / raw - 1.0);
   // TODO: degrees C: float tempC = 1.0 / (1.0 / 298.15 + log(r / R0) / BETA) - 273.15;
-  // TODO: print a line like: raw=512 temp_c=25.0
+  // TODO: print raw and tempC from your variables, so that a line looks like: raw=512 temp_c=25.0
+  //       (the numbers must come from the sensor: do not type them inside the quotes)
   delay(1000);
 }

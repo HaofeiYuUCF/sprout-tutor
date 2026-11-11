@@ -168,7 +168,7 @@ class FaultLibrary(Strict):
 
 class Check(Strict):
     id: str
-    type: Literal["compile_ok", "serial_regex", "serial_range"]
+    type: Literal["compile_ok", "serial_regex", "serial_range", "code_not_regex"]
     regex: str | None = None
     min_matches: int = 1
     field: str | None = None

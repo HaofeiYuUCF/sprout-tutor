@@ -23,6 +23,7 @@ void loop() {
   float tempC = readTemperature();
   // TODO: fanOn is true when tempC is above FAN_ON_C; switch FAN_PIN to match
   // TODO: alarmOn is true when tempC is above ALARM_C; switch BUZZER_PIN to match
-  // TODO: print a line like: temp_c=27.5 fan=ON alarm=OFF
+  // TODO: print tempC and both states, so that a line looks like: temp_c=27.5 fan=ON alarm=OFF
+  //       (the temperature must come from tempC: do not type the number inside the quotes)
   delay(500);
 }

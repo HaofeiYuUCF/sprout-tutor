@@ -74,7 +74,7 @@ class Tutor:
                         step_id=ctx.step_id, code_hash=ctx.code_hash, **fields)
 
     def checks(self, ctx: Context) -> list[CheckResult]:
-        results = run_checks(ctx.card.checks, ctx.compile_result, ctx.serial_lines)
+        results = run_checks(ctx.card.checks, ctx.compile_result, ctx.serial_lines, ctx.code)
         passed = [r.id for r in results if r.passed]
         self.logger.log("check_result", card_id=ctx.card.id, card_version=ctx.card.card.version,
                         code_hash=ctx.code_hash,
